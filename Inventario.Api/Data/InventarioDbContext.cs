@@ -1,4 +1,5 @@
-﻿using Inventario.Api.Models;
+﻿
+using Inventario.Api.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace Inventario.Api.Data
@@ -21,6 +22,15 @@ namespace Inventario.Api.Data
             modelBuilder.Entity<Producto>()
                 .Property(p => p.Precio)
                 .HasPrecision(18, 2);
+
+            modelBuilder.Entity<Producto>()
+                .Property(p => p.CodigoSku)
+                .HasMaxLength(50);
+
+            modelBuilder.Entity<Producto>()
+                .HasIndex(p => p.CodigoSku)
+                .IsUnique()
+                .HasFilter("[CodigoSku] IS NOT NULL");
 
             modelBuilder.Entity<Producto>()
                 .HasOne(p => p.Categoria)

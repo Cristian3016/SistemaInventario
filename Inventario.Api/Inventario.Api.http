@@ -1,21 +1,29 @@
 
 @baseUrl = https://localhost:7076
 
-### GET productos
+### PRODUCTOS
+
+### GET Productos
 GET {{baseUrl}}/api/productos
 Accept: application/json
 
 
-### POST productos
+### POST Productos
 POST {{baseUrl}}/api/productos
 Content-Type: application/json
 
 {
-  "nombre": "Monitor Samsung",
-  "descripcion": "Monitor LED de 24 pulgadas",
-  "precio": 95000,
-  "stock": 7
+  "nombre": "Monitor Samsung 24 pulgadas",
+  "descripcion": "Monitor LED Full HD de 24 pulgadas",
+  "codigoSku": "MON-001",
+  "precio": 150000,
+  "stock": 10,
+  "stockMinimo": 3,
+  "categoriaId": 1
 }
+
+###
+
 
 @productoId = 1
 
@@ -39,13 +47,23 @@ Content-Type: application/json
 }
 
 ### DELETE producto
-DELETE {{baseUrl}}/api/productos/{{productoId}}
+DELETE {{baseUrl}}/api/productos/3
+Accept: application/json
 
-### GET Categoria
+
+
+
+
+### CATEGORIA
+
+
+
+
+### GET 
 GET {{baseUrl}}/api/categorias
 Accept: application/json
 
-### POST Categoria
+### POST 
 POST {{baseUrl}}/api/categorias
 Content-Type: application/json
 
@@ -54,7 +72,7 @@ Content-Type: application/json
   "descripcion": "Monitores LED, LCD y gaming"
 }
 
-### Crear categoría Periféricos
+### Periféricos
 POST {{baseUrl}}/api/categorias
 Content-Type: application/json
 
@@ -90,7 +108,7 @@ Content-Type: application/json
   "descripcion": "Teclados, mouse, auriculares, webcams y accesorios para computadoras"
 }
 
-###
+### POST
 POST {{baseUrl}}/api/categorias
 Content-Type: application/json
 

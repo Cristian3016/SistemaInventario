@@ -43,6 +43,7 @@ namespace Inventario.Api.Controllers
         }
 
 
+
         [HttpPost]
         public async Task<ActionResult<Producto>> CrearProducto([FromBody] Producto nuevoProducto)
         {
@@ -90,6 +91,7 @@ namespace Inventario.Api.Controllers
                 new { id = producto.Id },
                 producto);
         }
+
 
 
 
