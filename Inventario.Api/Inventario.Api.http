@@ -1,0 +1,114 @@
+
+@baseUrl = https://localhost:7076
+
+### GET productos
+GET {{baseUrl}}/api/productos
+Accept: application/json
+
+
+### POST productos
+POST {{baseUrl}}/api/productos
+Content-Type: application/json
+
+{
+  "nombre": "Monitor Samsung",
+  "descripcion": "Monitor LED de 24 pulgadas",
+  "precio": 95000,
+  "stock": 7
+}
+
+@productoId = 1
+
+### PUT Productos
+PUT {{baseUrl}}/api/productos/{{productoId}}
+Content-Type: application/json
+
+{
+  "nombre": "Monitor Samsung",
+  "descripcion": "Monitor LED de 24 pulgadas Full HD",
+  "precio": 110000,
+  "stock": 12
+}
+
+### PATCH Productos(Stock)
+PATCH {{baseUrl}}/api/productos/{{productoId}}
+Content-Type: application/json
+
+{
+  "stock": 25
+}
+
+### DELETE producto
+DELETE {{baseUrl}}/api/productos/{{productoId}}
+
+### GET Categoria
+GET {{baseUrl}}/api/categorias
+Accept: application/json
+
+### POST Categoria
+POST {{baseUrl}}/api/categorias
+Content-Type: application/json
+
+{
+  "nombre": "Monitores",
+  "descripcion": "Monitores LED, LCD y gaming"
+}
+
+### Crear categoría Periféricos
+POST {{baseUrl}}/api/categorias
+Content-Type: application/json
+
+{
+  "nombre": "Periféricos",
+  "descripcion": "Teclados, mouse, auriculares y accesorios"
+}
+
+### Crear categoría Componentes
+POST {{baseUrl}}/api/categorias
+Content-Type: application/json
+
+{
+  "nombre": "Componentes",
+  "descripcion": "Procesadores, memorias RAM y placas de video"
+}
+
+### Crear categoría Almacenamiento
+POST {{baseUrl}}/api/categorias
+Content-Type: application/json
+
+{
+  "nombre": "Almacenamiento",
+  "descripcion": "Discos SSD, HDD y unidades de almacenamiento"
+}
+
+### PUT Categoria
+PUT {{baseUrl}}/api/categorias/2
+Content-Type: application/json
+
+{
+  "nombre": "Periféricos",
+  "descripcion": "Teclados, mouse, auriculares, webcams y accesorios para computadoras"
+}
+
+###
+POST {{baseUrl}}/api/categorias
+Content-Type: application/json
+
+{
+  "nombre": "Categoria Prueba DELETE",
+  "descripcion": "Categoria temporal para probar eliminacion"
+}
+
+### DELETE Categoria
+DELETE {{baseUrl}}/api/categorias/5
+Accept: application/json
+
+
+
+
+
+
+
+
+
+
