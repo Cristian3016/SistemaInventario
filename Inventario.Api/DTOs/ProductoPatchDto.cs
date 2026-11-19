@@ -1,4 +1,4 @@
-﻿using Inventario.Api.DTOs;
+﻿
 namespace Inventario.Api.DTOs
 {
     public class ProductoPatchDto
@@ -7,8 +7,14 @@ namespace Inventario.Api.DTOs
 
         public string? Descripcion { get; set; }
 
+        public string? CodigoSku { get; set; }
+
         public decimal? Precio { get; set; }
 
         public int? Stock { get; set; }
+
+        public int? StockMinimo { get; set; }
+
+        public int? CategoriaId { get; set; }
     }
 }

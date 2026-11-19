@@ -15,6 +15,8 @@ namespace Inventario.Api.Data
 
         public DbSet<Categoria> Categorias { get; set; }
 
+        public DbSet<MovimientoStock> MovimientosStock { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -37,7 +39,12 @@ namespace Inventario.Api.Data
                 .WithMany(c => c.Productos)
                 .HasForeignKey(p => p.CategoriaId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<MovimientoStock>()
+                .HasOne(m => m.Producto)
+                .WithMany()
+                .HasForeignKey(m => m.ProductoId)
+                .OnDelete(DeleteBehavior.Restrict);
         }
     }
 }
-

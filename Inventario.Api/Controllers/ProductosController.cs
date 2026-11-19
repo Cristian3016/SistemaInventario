@@ -27,6 +27,35 @@ namespace Inventario.Api.Controllers
 
             return Ok(productos);
         }
+
+
+        [HttpGet("stock-bajo")]
+        public async Task<IActionResult> ObtenerProductosConStockBajo()
+        {
+            var productos = await _context.Productos
+                .AsNoTracking()
+                .Where(p => p.StockMinimo > 0 && p.Stock <= p.StockMinimo)
+                .OrderBy(p => p.Stock)
+                .ToListAsync();
+
+            if (productos.Count == 0)
+            {
+                return Ok(new
+                {
+                    mensaje = "No hay productos con stock bajo.",
+                    productos
+                });
+            }
+
+            return Ok(new
+            {
+                mensaje = "¡Atención! Hay productos con stock bajo. Es necesario reponer mercadería.",
+                cantidadProductos = productos.Count,
+                productos
+            });
+        }
+
+
         [HttpGet("{id:int}")]
         public async Task<ActionResult<Producto>> ObtenerProductoPorId(int id)
         {
@@ -42,8 +71,6 @@ namespace Inventario.Api.Controllers
             return Ok(producto);
         }
 
-
-
         [HttpPost]
         public async Task<ActionResult<Producto>> CrearProducto([FromBody] Producto nuevoProducto)
         {
@@ -52,7 +79,9 @@ namespace Inventario.Api.Controllers
                 return BadRequest("El nombre es obligatorio.");
             }
 
-            if (nuevoProducto.Precio < 0 || nuevoProducto.Stock < 0 || nuevoProducto.StockMinimo < 0)
+            if (nuevoProducto.Precio < 0 ||
+                nuevoProducto.Stock < 0 ||
+                nuevoProducto.StockMinimo < 0)
             {
                 return BadRequest("El precio, el stock y el stock mínimo no pueden ser negativos.");
             }
@@ -68,13 +97,31 @@ namespace Inventario.Api.Controllers
                 }
             }
 
+            var codigoSku = string.IsNullOrWhiteSpace(nuevoProducto.CodigoSku)
+                ? null
+                : nuevoProducto.CodigoSku.Trim();
+
+            if (codigoSku != null)
+            {
+                if (codigoSku.Length > 50)
+                {
+                    return BadRequest("El código SKU no puede superar los 50 caracteres.");
+                }
+
+                var existeSku = await _context.Productos
+                    .AnyAsync(p => p.CodigoSku == codigoSku);
+
+                if (existeSku)
+                {
+                    return Conflict("Ya existe un producto con ese código SKU.");
+                }
+            }
+
             var producto = new Producto
             {
                 Nombre = nuevoProducto.Nombre.Trim(),
                 Descripcion = nuevoProducto.Descripcion ?? string.Empty,
-                CodigoSku = string.IsNullOrWhiteSpace(nuevoProducto.CodigoSku)
-                    ? null
-                    : nuevoProducto.CodigoSku.Trim(),
+                CodigoSku = codigoSku,
                 Precio = nuevoProducto.Precio,
                 Stock = nuevoProducto.Stock,
                 StockMinimo = nuevoProducto.StockMinimo,
@@ -92,13 +139,8 @@ namespace Inventario.Api.Controllers
                 producto);
         }
 
-
-
-
         [HttpPut("{id:int}")]
-        public async Task<IActionResult> ActualizarProducto(
-            int id,
-            [FromBody] Producto productoActualizado)
+        public async Task<IActionResult> ActualizarProducto(int id, [FromBody] Producto productoActualizado)
         {
             var producto = await _context.Productos.FindAsync(id);
 
@@ -113,17 +155,50 @@ namespace Inventario.Api.Controllers
             }
 
             if (productoActualizado.Precio < 0 ||
-                productoActualizado.Stock < 0)
+                productoActualizado.Stock < 0 ||
+                productoActualizado.StockMinimo < 0)
             {
-                return BadRequest(
-                    "El precio y el stock no pueden ser negativos.");
+                return BadRequest("El precio, el stock y el stock mínimo no pueden ser negativos.");
+            }
+
+            var codigoSku = string.IsNullOrWhiteSpace(productoActualizado.CodigoSku)
+                ? null
+                : productoActualizado.CodigoSku.Trim();
+
+            if (codigoSku != null)
+            {
+                if (codigoSku.Length > 50)
+                {
+                    return BadRequest("El código SKU no puede superar los 50 caracteres.");
+                }
+
+                var existeSku = await _context.Productos
+                    .AnyAsync(p => p.CodigoSku == codigoSku && p.Id != id);
+
+                if (existeSku)
+                {
+                    return Conflict("Ya existe otro producto con ese código SKU.");
+                }
+            }
+
+            if (productoActualizado.CategoriaId.HasValue)
+            {
+                var existeCategoria = await _context.Categorias
+                    .AnyAsync(c => c.Id == productoActualizado.CategoriaId.Value);
+
+                if (!existeCategoria)
+                {
+                    return BadRequest("La categoría indicada no existe.");
+                }
             }
 
             producto.Nombre = productoActualizado.Nombre.Trim();
-            producto.Descripcion = productoActualizado.Descripcion
-                ?? string.Empty;
+            producto.Descripcion = productoActualizado.Descripcion ?? string.Empty;
+            producto.CodigoSku = codigoSku;
             producto.Precio = productoActualizado.Precio;
             producto.Stock = productoActualizado.Stock;
+            producto.StockMinimo = productoActualizado.StockMinimo;
+            producto.CategoriaId = productoActualizado.CategoriaId;
 
             await _context.SaveChangesAsync();
 
@@ -132,8 +207,7 @@ namespace Inventario.Api.Controllers
 
         [HttpPatch("{id:int}")]
         public async Task<IActionResult> ActualizarParcialProducto(
-            int id,
-            [FromBody] ProductoPatchDto datosPatch)
+            int id, [FromBody] ProductoPatchDto datosPatch)
         {
             var producto = await _context.Productos.FindAsync(id);
 
@@ -144,11 +218,13 @@ namespace Inventario.Api.Controllers
 
             if (datosPatch.Nombre == null &&
                 datosPatch.Descripcion == null &&
+                datosPatch.CodigoSku == null &&
                 datosPatch.Precio == null &&
-                datosPatch.Stock == null)
+                datosPatch.Stock == null &&
+                datosPatch.StockMinimo == null &&
+                datosPatch.CategoriaId == null)
             {
-                return BadRequest(
-                    "Debes enviar al menos un campo para actualizar.");
+                return BadRequest("Debes enviar al menos un campo para actualizar.");
             }
 
             if (datosPatch.Nombre != null &&
@@ -157,16 +233,56 @@ namespace Inventario.Api.Controllers
                 return BadRequest("El nombre no puede estar vacío.");
             }
 
-            if (datosPatch.Precio.HasValue &&
-                datosPatch.Precio.Value < 0)
+            if (datosPatch.Precio.HasValue && datosPatch.Precio.Value < 0)
             {
                 return BadRequest("El precio no puede ser negativo.");
             }
 
-            if (datosPatch.Stock.HasValue &&
-                datosPatch.Stock.Value < 0)
+            if (datosPatch.Stock.HasValue && datosPatch.Stock.Value < 0)
             {
                 return BadRequest("El stock no puede ser negativo.");
+            }
+
+            if (datosPatch.StockMinimo.HasValue &&
+                datosPatch.StockMinimo.Value < 0)
+            {
+                return BadRequest("El stock mínimo no puede ser negativo.");
+            }
+
+            if (datosPatch.CodigoSku != null)
+            {
+                var codigoSku = string.IsNullOrWhiteSpace(datosPatch.CodigoSku)
+                    ? null
+                    : datosPatch.CodigoSku.Trim();
+
+                if (codigoSku != null)
+                {
+                    if (codigoSku.Length > 50)
+                    {
+                        return BadRequest("El código SKU no puede superar los 50 caracteres.");
+                    }
+
+                    var existeSku = await _context.Productos
+                        .AnyAsync(p => p.CodigoSku == codigoSku && p.Id != id);
+
+                    if (existeSku)
+                    {
+                        return Conflict("Ya existe otro producto con ese código SKU.");
+                    }
+                }
+
+                producto.CodigoSku = codigoSku;
+            }
+
+            if (datosPatch.CategoriaId.HasValue)
+            {
+                var existeCategoria = await _context.Categorias
+                    .AnyAsync(c => c.Id == datosPatch.CategoriaId.Value);
+
+                if (!existeCategoria)
+                {
+                    return BadRequest("La categoría indicada no existe.");
+                }
             }
 
             if (datosPatch.Nombre != null)
@@ -187,6 +303,16 @@ namespace Inventario.Api.Controllers
             if (datosPatch.Stock.HasValue)
             {
                 producto.Stock = datosPatch.Stock.Value;
+            }
+
+            if (datosPatch.StockMinimo.HasValue)
+            {
+                producto.StockMinimo = datosPatch.StockMinimo.Value;
+            }
+
+            if (datosPatch.CategoriaId.HasValue)
+            {
+                producto.CategoriaId = datosPatch.CategoriaId.Value;
             }
 
             await _context.SaveChangesAsync();
@@ -210,7 +336,5 @@ namespace Inventario.Api.Controllers
 
             return NoContent();
         }
-
     }
 }
-

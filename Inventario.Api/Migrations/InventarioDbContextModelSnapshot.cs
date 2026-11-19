@@ -43,6 +43,37 @@ namespace Inventario.Api.Migrations
                     b.ToTable("Categorias");
                 });
 
+            modelBuilder.Entity("Inventario.Api.Models.MovimientoStock", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("Cantidad")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("FechaMovimiento")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Observacion")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("ProductoId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Tipo")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductoId");
+
+                    b.ToTable("MovimientosStock");
+                });
+
             modelBuilder.Entity("Inventario.Api.Models.Producto", b =>
                 {
                     b.Property<int>("Id")
@@ -55,7 +86,8 @@ namespace Inventario.Api.Migrations
                         .HasColumnType("int");
 
                     b.Property<string>("CodigoSku")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
 
                     b.Property<string>("Descripcion")
                         .IsRequired()
@@ -82,7 +114,22 @@ namespace Inventario.Api.Migrations
 
                     b.HasIndex("CategoriaId");
 
+                    b.HasIndex("CodigoSku")
+                        .IsUnique()
+                        .HasFilter("[CodigoSku] IS NOT NULL");
+
                     b.ToTable("Productos");
+                });
+
+            modelBuilder.Entity("Inventario.Api.Models.MovimientoStock", b =>
+                {
+                    b.HasOne("Inventario.Api.Models.Producto", "Producto")
+                        .WithMany()
+                        .HasForeignKey("ProductoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Producto");
                 });
 
             modelBuilder.Entity("Inventario.Api.Models.Producto", b =>

@@ -1,20 +1,81 @@
 
 @baseUrl = https://localhost:7076
+@productoId = 2
+@productoLGId = 5
+@categoriaId = 1
+@categoriaPerifericosId = 2
+@productoEliminarId = 99999
+@categoriaEliminarId = 99999
 
-### PRODUCTOS
+# ==========================================
+# PRODUCTOS
+# ==========================================
 
-### GET Productos
+### GET - Obtener todos los productos
 GET {{baseUrl}}/api/productos
 Accept: application/json
 
 
-### POST Productos
+### GET - Obtener producto por ID
+GET {{baseUrl}}/api/productos/{{productoId}}
+Accept: application/json
+
+
+### POST - Crear producto nuevo
 POST {{baseUrl}}/api/productos
 Content-Type: application/json
 
 {
-  "nombre": "Monitor Samsung 24 pulgadas",
-  "descripcion": "Monitor LED Full HD de 24 pulgadas",
+  "nombre": "Teclado Mecánico RGB",
+  "descripcion": "Teclado mecánico para gaming",
+  "codigoSku": "PER-001",
+  "precio": 85000,
+  "stock": 15,
+  "stockMinimo": 5,
+  "categoriaId": 2
+}
+
+
+### PUT - Actualizar producto completo
+PUT {{baseUrl}}/api/productos/{{productoLGId}}
+Content-Type: application/json
+
+{
+  "nombre": "Monitor LG 27 pulgadas",
+  "descripcion": "Monitor IPS Full HD de 27 pulgadas",
+  "codigoSku": "MON-002",
+  "precio": 185000,
+  "stock": 8,
+  "stockMinimo": 3,
+  "categoriaId": 1
+}
+
+
+### PATCH - Actualizar solamente el stock
+PATCH {{baseUrl}}/api/productos/{{productoId}}
+Content-Type: application/json
+
+{
+  "stock": 20
+}
+
+
+### DELETE - Eliminar producto de prueba
+DELETE {{baseUrl}}/api/productos/{{productoEliminarId}}
+Accept: application/json
+
+
+# ==========================================
+# VALIDACIONES DE PRODUCTOS
+# ==========================================
+
+### POST - Comprobar SKU duplicado (409)
+POST {{baseUrl}}/api/productos
+Content-Type: application/json
+
+{
+  "nombre": "Monitor de prueba",
+  "descripcion": "Prueba de SKU duplicado",
   "codigoSku": "MON-001",
   "precio": 150000,
   "stock": 10,
@@ -22,85 +83,60 @@ Content-Type: application/json
   "categoriaId": 1
 }
 
-###
 
-
-@productoId = 1
-
-### PUT Productos
-PUT {{baseUrl}}/api/productos/{{productoId}}
+### PATCH - Comprobar SKU duplicado (409)
+PATCH {{baseUrl}}/api/productos/{{productoLGId}}
 Content-Type: application/json
 
 {
-  "nombre": "Monitor Samsung",
-  "descripcion": "Monitor LED de 24 pulgadas Full HD",
-  "precio": 110000,
-  "stock": 12
+  "codigoSku": "MON-001"
 }
 
-### PATCH Productos(Stock)
+
+### PATCH - Comprobar stock mínimo negativo (400)
 PATCH {{baseUrl}}/api/productos/{{productoId}}
 Content-Type: application/json
 
 {
-  "stock": 25
+  "stockMinimo": -5
 }
 
-### DELETE producto
-DELETE {{baseUrl}}/api/productos/3
-Accept: application/json
+
+### PATCH - Comprobar categoría inexistente (400)
+PATCH {{baseUrl}}/api/productos/{{productoId}}
+Content-Type: application/json
+
+{
+  "categoriaId": 99999
+}
 
 
+# ==========================================
+# CATEGORÍAS
+# ==========================================
 
-
-
-### CATEGORIA
-
-
-
-
-### GET 
+### GET - Obtener todas las categorías
 GET {{baseUrl}}/api/categorias
 Accept: application/json
 
-### POST 
+
+### GET - Obtener categoría por ID
+GET {{baseUrl}}/api/categorias/{{categoriaId}}
+Accept: application/json
+
+
+### POST - Crear nueva categoría
 POST {{baseUrl}}/api/categorias
 Content-Type: application/json
 
 {
-  "nombre": "Monitores",
-  "descripcion": "Monitores LED, LCD y gaming"
+  "nombre": "Impresoras",
+  "descripcion": "Impresoras láser, tinta y multifunción"
 }
 
-### Periféricos
-POST {{baseUrl}}/api/categorias
-Content-Type: application/json
 
-{
-  "nombre": "Periféricos",
-  "descripcion": "Teclados, mouse, auriculares y accesorios"
-}
-
-### Crear categoría Componentes
-POST {{baseUrl}}/api/categorias
-Content-Type: application/json
-
-{
-  "nombre": "Componentes",
-  "descripcion": "Procesadores, memorias RAM y placas de video"
-}
-
-### Crear categoría Almacenamiento
-POST {{baseUrl}}/api/categorias
-Content-Type: application/json
-
-{
-  "nombre": "Almacenamiento",
-  "descripcion": "Discos SSD, HDD y unidades de almacenamiento"
-}
-
-### PUT Categoria
-PUT {{baseUrl}}/api/categorias/2
+### PUT - Actualizar categoría Periféricos
+PUT {{baseUrl}}/api/categorias/{{categoriaPerifericosId}}
 Content-Type: application/json
 
 {
@@ -108,18 +144,97 @@ Content-Type: application/json
   "descripcion": "Teclados, mouse, auriculares, webcams y accesorios para computadoras"
 }
 
-### POST
+
+### DELETE - Eliminar categoría de prueba
+DELETE {{baseUrl}}/api/categorias/{{categoriaEliminarId}}
+Accept: application/json
+
+
+# ==========================================
+# VALIDACIONES DE CATEGORÍAS
+# ==========================================
+
+### POST - Comprobar categoría duplicada (409)
 POST {{baseUrl}}/api/categorias
 Content-Type: application/json
 
 {
-  "nombre": "Categoria Prueba DELETE",
-  "descripcion": "Categoria temporal para probar eliminacion"
+  "nombre": "Monitores",
+  "descripcion": "Categoría duplicada de prueba"
 }
 
-### DELETE Categoria
-DELETE {{baseUrl}}/api/categorias/5
+### PATCH - Comprobar categoría inexistente (400)
+PATCH {{baseUrl}}/api/productos/{{productoId}}
+Content-Type: application/json
+
+{
+  "categoriaId": 99999
+}
+
+
+### PATCH - Actualizar precio, stock y stock mínimo
+PATCH {{baseUrl}}/api/productos/{{productoId}}
+Content-Type: application/json
+
+{
+  "precio": 175000,
+  "stock": 15,
+  "stockMinimo": 5
+}
+
+### GET - Obtener productos con stock bajo
+GET {{baseUrl}}/api/productos/stock-bajo
 Accept: application/json
+
+
+### PATCH - Simular stock bajo
+PATCH {{baseUrl}}/api/productos/2
+Content-Type: application/json
+
+{
+  "stock": 3
+}
+###
+GET {{baseUrl}}/api/productos/stock-bajo
+Accept: application/json
+
+
+### PATCH - Reponer stock del Monitor Samsung
+PATCH {{baseUrl}}/api/productos/2
+Content-Type: application/json
+
+{
+  "stock": 15
+}
+
+### MOVIMIENTOS DE STOCK
+
+### POST - Registrar entrada de mercadería
+POST {{baseUrl}}/api/movimientosstock
+Content-Type: application/json
+
+{
+  "productoId": 2,
+  "tipo": 1,
+  "cantidad": 10,
+  "observacion": "Ingreso de 10 monitores Samsung del proveedor"
+}
+
+###
+POST {{baseUrl}}/api/movimientosstock
+Content-Type: application/json
+
+{
+  "productoId": 2,
+  "tipo": 2,
+  "cantidad": 5,
+  "observacion": "Venta de 5 monitores Samsung"
+}
+
+
+
+
+
 
 
 
