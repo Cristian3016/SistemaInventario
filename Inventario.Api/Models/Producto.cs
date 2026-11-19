@@ -18,6 +18,9 @@
 
         public DateTime FechaCreacion { get; set; } = DateTime.UtcNow;
 
+        public bool Activo { get; set; } = true;
+
+
         public int? CategoriaId { get; set; }
 
         public Categoria? Categoria { get; set; }

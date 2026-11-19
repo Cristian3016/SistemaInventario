@@ -69,6 +69,7 @@ namespace Inventario.Api.Controllers
                 .Where(p => p.Id == datos.ProductoId)
                 .Select(p => new
                 {
+                    p.Activo,
                     p.UnidadMedidaId,
                     PermiteFracciones = p.UnidadMedida != null &&
                                        p.UnidadMedida.PermiteFracciones
@@ -78,6 +79,12 @@ namespace Inventario.Api.Controllers
             if (producto == null)
             {
                 return NotFound("Producto no encontrado.");
+            }
+
+            if (!producto.Activo)
+            {
+                return Conflict(
+                    "No se pueden registrar movimientos de stock en productos inactivos.");
             }
 
             if (datos.Cantidad != decimal.Truncate(datos.Cantidad))
@@ -106,6 +113,7 @@ namespace Inventario.Api.Controllers
 
                 filasActualizadas = await _context.Productos
                     .Where(p => p.Id == datos.ProductoId &&
+                                p.Activo &&
                                 p.Stock <= stockMaximo - datos.Cantidad)
                     .ExecuteUpdateAsync(cambios =>
                         cambios.SetProperty(
@@ -116,6 +124,7 @@ namespace Inventario.Api.Controllers
             {
                 filasActualizadas = await _context.Productos
                     .Where(p => p.Id == datos.ProductoId &&
+                                p.Activo &&
                                 p.Stock >= datos.Cantidad)
                     .ExecuteUpdateAsync(cambios =>
                         cambios.SetProperty(
@@ -125,6 +134,18 @@ namespace Inventario.Api.Controllers
 
             if (filasActualizadas == 0)
             {
+                var sigueActivo = await _context.Productos
+                    .AsNoTracking()
+                    .Where(p => p.Id == datos.ProductoId)
+                    .Select(p => p.Activo)
+                    .FirstAsync();
+
+                if (!sigueActivo)
+                {
+                    return Conflict(
+                        "No se pueden registrar movimientos de stock en productos inactivos.");
+                }
+
                 return Conflict(
                     datos.Tipo == TipoMovimiento.Salida
                         ? "Stock insuficiente para registrar la salida."
@@ -165,6 +186,7 @@ namespace Inventario.Api.Controllers
         }
     }
 }
+
 
 
 

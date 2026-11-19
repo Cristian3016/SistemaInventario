@@ -1,5 +1,4 @@
-﻿
-using Inventario.Api.Data;
+﻿using Inventario.Api.Data;
 using Inventario.Api.DTOs;
 using Inventario.Api.Models;
 using Microsoft.AspNetCore.Mvc;
@@ -33,12 +32,19 @@ namespace Inventario.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Producto>>> ObtenerProductos()
+        public async Task<ActionResult<IEnumerable<Producto>>> ObtenerProductos(
+            [FromQuery] bool? activo)
         {
-            var productos = await _context.Productos
+            IQueryable<Producto> consulta = _context.Productos
                 .AsNoTracking()
-                .Include(p => p.UnidadMedida)
-                .ToListAsync();
+                .Include(p => p.UnidadMedida);
+
+            if (activo.HasValue)
+            {
+                consulta = consulta.Where(p => p.Activo == activo.Value);
+            }
+
+            var productos = await consulta.ToListAsync();
 
             return Ok(productos);
         }
@@ -49,7 +55,9 @@ namespace Inventario.Api.Controllers
             var productos = await _context.Productos
                 .AsNoTracking()
                 .Include(p => p.UnidadMedida)
-                .Where(p => p.StockMinimo > 0 && p.Stock <= p.StockMinimo)
+                .Where(p => p.Activo &&
+                            p.StockMinimo > 0 &&
+                            p.Stock <= p.StockMinimo)
                 .OrderBy(p => p.Stock)
                 .ToListAsync();
 
@@ -219,6 +227,12 @@ namespace Inventario.Api.Controllers
                 return NotFound("Producto no encontrado.");
             }
 
+            if (!producto.Activo)
+            {
+                return Conflict(
+                    "No se puede modificar un producto inactivo. Primero debes activarlo.");
+            }
+
             if (productoActualizado.Stock != producto.Stock)
             {
                 return BadRequest(
@@ -342,6 +356,12 @@ namespace Inventario.Api.Controllers
             if (producto == null)
             {
                 return NotFound("Producto no encontrado.");
+            }
+
+            if (!producto.Activo)
+            {
+                return Conflict(
+                    "No se puede modificar un producto inactivo. Primero debes activarlo.");
             }
 
             if (datosPatch.Nombre == null &&
@@ -472,6 +492,62 @@ namespace Inventario.Api.Controllers
             await _context.SaveChangesAsync();
 
             return Ok(producto);
+        }
+
+        [HttpPatch("{id:int}/desactivar")]
+        public async Task<IActionResult> DesactivarProducto(int id)
+        {
+            var producto = await _context.Productos.FindAsync(id);
+
+            if (producto == null)
+            {
+                return NotFound("Producto no encontrado.");
+            }
+
+            if (!producto.Activo)
+            {
+                return Conflict("El producto ya está desactivado.");
+            }
+
+            producto.Activo = false;
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                mensaje = "Producto desactivado correctamente.",
+                productoId = producto.Id,
+                nombre = producto.Nombre,
+                activo = producto.Activo
+            });
+        }
+
+        [HttpPatch("{id:int}/activar")]
+        public async Task<IActionResult> ActivarProducto(int id)
+        {
+            var producto = await _context.Productos.FindAsync(id);
+
+            if (producto == null)
+            {
+                return NotFound("Producto no encontrado.");
+            }
+
+            if (producto.Activo)
+            {
+                return Conflict("El producto ya está activo.");
+            }
+
+            producto.Activo = true;
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                mensaje = "Producto activado correctamente.",
+                productoId = producto.Id,
+                nombre = producto.Nombre,
+                activo = producto.Activo
+            });
         }
 
         [HttpDelete("{id:int}")]

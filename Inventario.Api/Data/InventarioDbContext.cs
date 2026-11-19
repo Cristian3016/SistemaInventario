@@ -40,6 +40,10 @@ namespace Inventario.Api.Data
                 .HasPrecision(18, 3);
 
             modelBuilder.Entity<Producto>()
+                .Property(p => p.Activo)
+                .HasDefaultValue(true);
+
+            modelBuilder.Entity<Producto>()
                 .Property(p => p.CodigoSku)
                 .HasMaxLength(50);
 

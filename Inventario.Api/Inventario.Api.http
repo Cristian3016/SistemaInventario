@@ -353,6 +353,99 @@ Content-Type: application/json
 }
 
 
+### Paso 113.8 - Desactivar producto
+PATCH {{baseUrl}}/api/productos/7/desactivar
+
+
+
+### Paso 113.11 - Reactivar producto
+PATCH {{baseUrl}}/api/productos/7/activar
+
+
+### Paso 113.14 - Desactivar producto para prueba
+PATCH {{baseUrl}}/api/productos/7/desactivar
+
+### Paso 113.14 - Intentar salida de producto inactivo
+POST {{baseUrl}}/api/movimientosstock
+Content-Type: application/json
+
+{
+  "productoId": 7,
+  "tipo": 2,
+  "cantidad": 1.25,
+  "observacion": "Prueba de salida de producto inactivo"
+}
+
+### Paso 113.17 - Rechazar PATCH de producto inactivo
+PATCH {{baseUrl}}/api/productos/7
+Content-Type: application/json
+
+{
+  "precio": 850.50
+}
+
+### Paso 113.17 - Rechazar PUT de producto inactivo
+PUT {{baseUrl}}/api/productos/7
+Content-Type: application/json
+
+{
+  "nombre": "Cable unipolar 2,5 mm",
+  "descripcion": "Cable eléctrico vendido por metro",
+  "codigoSku": "ELE-CAB-F55",
+  "precio": 850.50,
+  "stock": 10.25,
+  "stockMinimo": 2.5,
+  "categoriaId": 1003,
+  "unidadMedidaId": 2
+}
+
+
+### Paso 113.19 - Consultar todos los productos
+GET {{baseUrl}}/api/productos
+
+### Paso 113.19 - Consultar productos activos
+GET {{baseUrl}}/api/productos?activo=true
+
+### Paso 113.19 - Consultar productos inactivos
+GET {{baseUrl}}/api/productos?activo=false
+
+
+### Paso 113.21 - Crear producto para probar alertas
+POST {{baseUrl}}/api/productos
+Content-Type: application/json
+
+{
+  "nombre": "Martillo de prueba - Stock bajo",
+  "descripcion": "Producto temporal para probar alertas de stock",
+  "codigoSku": "TEST-ALERTA-113",
+  "precio": 5000,
+  "stock": 0,
+  "stockMinimo": 5,
+  "categoriaId": 1006,
+  "unidadMedidaId": 1
+}
+
+
+### Paso 113.22 - Verificar producto activo con stock bajo
+GET {{baseUrl}}/api/productos/stock-bajo
+
+
+### Paso 113.23 - Desactivar martillo de prueba
+PATCH {{baseUrl}}/api/productos/8/desactivar
+
+### Paso 113.23 - Consultar alertas de stock bajo
+GET {{baseUrl}}/api/productos/stock-bajo
+
+
+### Paso 113.25 - Eliminar producto temporal de prueba
+DELETE {{baseUrl}}/api/productos/8
+
+
+
+
+
+
+
 
 
 
