@@ -202,6 +202,162 @@ Content-Type: application/json
 }
 
 
+### ==========================================
+### UNIDADES DE MEDIDA - GET
+### ==========================================
+
+### GET - Obtener todas las unidades de medida
+GET {{baseUrl}}/api/unidadesmedida
+Accept: application/json
+
+
+### ==========================================
+### UNIDADES DE MEDIDA - POST
+### ==========================================
+
+
+### POST - Crear unidad Metro
+POST {{baseUrl}}/api/unidadesmedida
+Content-Type: application/json
+
+{
+  "nombre": "Metro",
+  "abreviatura": "m",
+  "permiteFracciones": true
+}
+
+### POST - Crear unidad Kilogramo
+POST {{baseUrl}}/api/unidadesmedida
+Content-Type: application/json
+
+{
+  "nombre": "Kilogramo",
+  "abreviatura": "kg",
+  "permiteFracciones": true
+}
+
+### POST - Crear unidad Litro
+POST {{baseUrl}}/api/unidadesmedida
+Content-Type: application/json
+
+{
+  "nombre": "Litro",
+  "abreviatura": "L",
+  "permiteFracciones": true
+}
+
+### POST - Crear unidad Caja
+POST {{baseUrl}}/api/unidadesmedida
+Content-Type: application/json
+
+{
+  "nombre": "Caja",
+  "abreviatura": "caja",
+  "permiteFracciones": false
+}
+
+### POST - Crear unidad Bolsa
+POST {{baseUrl}}/api/unidadesmedida
+Content-Type: application/json
+
+{
+  "nombre": "Bolsa",
+  "abreviatura": "bolsa",
+  "permiteFracciones": false
+}
+
+### POST - Crear unidad Rollo
+POST {{baseUrl}}/api/unidadesmedida
+Content-Type: application/json
+
+{
+  "nombre": "Rollo",
+  "abreviatura": "rollo",
+  "permiteFracciones": false
+}
+
+### POST - Crear unidad Metro cuadrado
+POST {{baseUrl}}/api/unidadesmedida
+Content-Type: application/json
+
+{
+  "nombre": "Metro cuadrado",
+  "abreviatura": "m²",
+  "permiteFracciones": true
+}
+
+### POST - Crear unidad Metro cúbico
+POST {{baseUrl}}/api/unidadesmedida
+Content-Type: application/json
+
+{
+  "nombre": "Metro cúbico",
+  "abreviatura": "m³",
+  "permiteFracciones": true
+}
+
+
+### F55 - Crear cable eléctrico con cantidades decimales
+POST {{baseUrl}}/api/productos
+Content-Type: application/json
+
+{
+  "nombre": "Cable unipolar 2,5 mm",
+  "descripcion": "Cable eléctrico vendido por metro",
+  "codigoSku": "ELE-CAB-F55",
+  "precio": 850.50,
+  "stock": 12.5,
+  "stockMinimo": 2.5,
+  "categoriaId": 1003,
+  "unidadMedidaId": 2
+}
+
+
+### F56 - Rechazar cantidades decimales en productos por unidad
+POST {{baseUrl}}/api/productos
+Content-Type: application/json
+
+{
+  "nombre": "Martillo de carpintero",
+  "descripcion": "Martillo de acero con mango de fibra",
+  "codigoSku": "HER-MAR-F56",
+  "precio": 12500.00,
+  "stock": 2.5,
+  "stockMinimo": 1,
+  "categoriaId": 1006,
+  "unidadMedidaId": 1
+}
+
+
+### F57 - Registrar salida de stock decimal
+POST {{baseUrl}}/api/movimientosstock
+Content-Type: application/json
+
+{
+  "productoId": 7,
+  "tipo": 2,
+  "cantidad": 2.25,
+  "observacion": "Venta de 2,25 metros de cable eléctrico"
+}
+
+
+### F58 - Rechazar salida por stock insuficiente
+POST {{baseUrl}}/api/movimientosstock
+Content-Type: application/json
+
+{
+  "productoId": 7,
+  "tipo": 2,
+  "cantidad": 50.5,
+  "observacion": "Prueba de salida con stock insuficiente"
+}
+
+
+
+
+
+
+
 
 
 

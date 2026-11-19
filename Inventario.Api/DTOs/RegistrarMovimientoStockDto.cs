@@ -9,9 +9,10 @@ namespace Inventario.Api.DTOs
 
         public TipoMovimiento Tipo { get; set; }
 
-        public int Cantidad { get; set; }
+        public decimal Cantidad { get; set; }
 
         public string Observacion { get; set; } = string.Empty;
     }
 }
+
 

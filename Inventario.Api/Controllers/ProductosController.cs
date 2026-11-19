@@ -13,9 +13,23 @@ namespace Inventario.Api.Controllers
     {
         private readonly InventarioDbContext _context;
 
+        private const decimal CantidadMaxima = 999999999999999.999m;
+
         public ProductosController(InventarioDbContext context)
         {
             _context = context;
+        }
+
+        private static bool TieneFracciones(decimal cantidad)
+        {
+            return cantidad != decimal.Truncate(cantidad);
+        }
+
+        private static bool CantidadFueraDeRango(decimal cantidad)
+        {
+            return cantidad < 0 ||
+                   cantidad > CantidadMaxima ||
+                   decimal.Round(cantidad, 3) != cantidad;
         }
 
         [HttpGet]
@@ -23,6 +37,7 @@ namespace Inventario.Api.Controllers
         {
             var productos = await _context.Productos
                 .AsNoTracking()
+                .Include(p => p.UnidadMedida)
                 .ToListAsync();
 
             return Ok(productos);
@@ -33,6 +48,7 @@ namespace Inventario.Api.Controllers
         {
             var productos = await _context.Productos
                 .AsNoTracking()
+                .Include(p => p.UnidadMedida)
                 .Where(p => p.StockMinimo > 0 && p.Stock <= p.StockMinimo)
                 .OrderBy(p => p.Stock)
                 .ToListAsync();
@@ -59,6 +75,7 @@ namespace Inventario.Api.Controllers
         {
             var producto = await _context.Productos
                 .AsNoTracking()
+                .Include(p => p.UnidadMedida)
                 .FirstOrDefaultAsync(p => p.Id == id);
 
             if (producto == null)
@@ -69,20 +86,25 @@ namespace Inventario.Api.Controllers
             return Ok(producto);
         }
 
-
         [HttpPost]
-        public async Task<ActionResult<Producto>> CrearProducto([FromBody] Producto nuevoProducto)
+        public async Task<ActionResult<Producto>> CrearProducto(
+            [FromBody] Producto nuevoProducto)
         {
             if (string.IsNullOrWhiteSpace(nuevoProducto.Nombre))
             {
                 return BadRequest("El nombre es obligatorio.");
             }
 
-            if (nuevoProducto.Precio < 0 ||
-                nuevoProducto.Stock < 0 ||
-                nuevoProducto.StockMinimo < 0)
+            if (nuevoProducto.Precio < 0)
             {
-                return BadRequest("El precio, el stock y el stock mínimo no pueden ser negativos.");
+                return BadRequest("El precio no puede ser negativo.");
+            }
+
+            if (CantidadFueraDeRango(nuevoProducto.Stock) ||
+                CantidadFueraDeRango(nuevoProducto.StockMinimo))
+            {
+                return BadRequest(
+                    "El stock y el stock mínimo deben ser positivos o cero, no superar el rango permitido y tener como máximo tres decimales.");
             }
 
             if (nuevoProducto.CategoriaId.HasValue)
@@ -96,6 +118,37 @@ namespace Inventario.Api.Controllers
                 }
             }
 
+            UnidadMedida? unidadMedida = null;
+
+            if (nuevoProducto.UnidadMedidaId.HasValue)
+            {
+                unidadMedida = await _context.UnidadesMedida
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(
+                        u => u.Id == nuevoProducto.UnidadMedidaId.Value);
+
+                if (unidadMedida == null)
+                {
+                    return BadRequest("La unidad de medida indicada no existe.");
+                }
+            }
+
+            if (TieneFracciones(nuevoProducto.Stock) ||
+                TieneFracciones(nuevoProducto.StockMinimo))
+            {
+                if (unidadMedida == null)
+                {
+                    return BadRequest(
+                        "Debes asignar una unidad de medida para utilizar cantidades decimales.");
+                }
+
+                if (!unidadMedida.PermiteFracciones)
+                {
+                    return BadRequest(
+                        "La unidad de medida indicada no permite cantidades decimales.");
+                }
+            }
+
             var codigoSku = string.IsNullOrWhiteSpace(nuevoProducto.CodigoSku)
                 ? null
                 : nuevoProducto.CodigoSku.Trim();
@@ -104,7 +157,8 @@ namespace Inventario.Api.Controllers
             {
                 if (codigoSku.Length > 50)
                 {
-                    return BadRequest("El código SKU no puede superar los 50 caracteres.");
+                    return BadRequest(
+                        "El código SKU no puede superar los 50 caracteres.");
                 }
 
                 var existeSku = await _context.Productos
@@ -112,19 +166,21 @@ namespace Inventario.Api.Controllers
 
                 if (existeSku)
                 {
-                    return Conflict("Ya existe un producto con ese código SKU.");
+                    return Conflict(
+                        "Ya existe un producto con ese código SKU.");
                 }
             }
 
             var producto = new Producto
             {
                 Nombre = nuevoProducto.Nombre.Trim(),
-                Descripcion = nuevoProducto.Descripcion ?? string.Empty,
+                Descripcion = nuevoProducto.Descripcion?.Trim() ?? string.Empty,
                 CodigoSku = codigoSku,
                 Precio = nuevoProducto.Precio,
                 Stock = nuevoProducto.Stock,
                 StockMinimo = nuevoProducto.StockMinimo,
                 CategoriaId = nuevoProducto.CategoriaId,
+                UnidadMedidaId = nuevoProducto.UnidadMedidaId,
                 FechaCreacion = DateTime.UtcNow
             };
 
@@ -152,7 +208,6 @@ namespace Inventario.Api.Controllers
                 producto);
         }
 
-
         [HttpPut("{id:int}")]
         public async Task<IActionResult> ActualizarProducto(
             int id, [FromBody] Producto productoActualizado)
@@ -166,7 +221,8 @@ namespace Inventario.Api.Controllers
 
             if (productoActualizado.Stock != producto.Stock)
             {
-                return BadRequest("El stock solo puede modificarse mediante movimientos de inventario.");
+                return BadRequest(
+                    "El stock solo puede modificarse mediante movimientos de inventario.");
             }
 
             if (string.IsNullOrWhiteSpace(productoActualizado.Nombre))
@@ -174,10 +230,15 @@ namespace Inventario.Api.Controllers
                 return BadRequest("El nombre es obligatorio.");
             }
 
-            if (productoActualizado.Precio < 0 ||
-                productoActualizado.StockMinimo < 0)
+            if (productoActualizado.Precio < 0)
             {
-                return BadRequest("El precio y el stock mínimo no pueden ser negativos.");
+                return BadRequest("El precio no puede ser negativo.");
+            }
+
+            if (CantidadFueraDeRango(productoActualizado.StockMinimo))
+            {
+                return BadRequest(
+                    "El stock mínimo debe ser positivo o cero, no superar el rango permitido y tener como máximo tres decimales.");
             }
 
             var codigoSku = string.IsNullOrWhiteSpace(productoActualizado.CodigoSku)
@@ -188,7 +249,8 @@ namespace Inventario.Api.Controllers
             {
                 if (codigoSku.Length > 50)
                 {
-                    return BadRequest("El código SKU no puede superar los 50 caracteres.");
+                    return BadRequest(
+                        "El código SKU no puede superar los 50 caracteres.");
                 }
 
                 var existeSku = await _context.Productos
@@ -196,14 +258,16 @@ namespace Inventario.Api.Controllers
 
                 if (existeSku)
                 {
-                    return Conflict("Ya existe otro producto con ese código SKU.");
+                    return Conflict(
+                        "Ya existe otro producto con ese código SKU.");
                 }
             }
 
             if (productoActualizado.CategoriaId.HasValue)
             {
                 var existeCategoria = await _context.Categorias
-                    .AnyAsync(c => c.Id == productoActualizado.CategoriaId.Value);
+                    .AnyAsync(
+                        c => c.Id == productoActualizado.CategoriaId.Value);
 
                 if (!existeCategoria)
                 {
@@ -211,12 +275,58 @@ namespace Inventario.Api.Controllers
                 }
             }
 
+            UnidadMedida? unidadMedida = null;
+
+            if (productoActualizado.UnidadMedidaId.HasValue)
+            {
+                unidadMedida = await _context.UnidadesMedida
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(
+                        u => u.Id == productoActualizado.UnidadMedidaId.Value);
+
+                if (unidadMedida == null)
+                {
+                    return BadRequest("La unidad de medida indicada no existe.");
+                }
+            }
+
+            if (TieneFracciones(producto.Stock) ||
+                TieneFracciones(productoActualizado.StockMinimo))
+            {
+                if (unidadMedida == null)
+                {
+                    return BadRequest(
+                        "El producto necesita una unidad de medida que permita cantidades decimales.");
+                }
+
+                if (!unidadMedida.PermiteFracciones)
+                {
+                    return BadRequest(
+                        "La unidad de medida indicada no permite cantidades decimales.");
+                }
+            }
+
+            if (producto.UnidadMedidaId.HasValue &&
+                producto.UnidadMedidaId != productoActualizado.UnidadMedidaId)
+            {
+                var tieneMovimientos = await _context.MovimientosStock
+                    .AnyAsync(m => m.ProductoId == id);
+
+                if (tieneMovimientos)
+                {
+                    return Conflict(
+                        "No se puede cambiar la unidad de medida de un producto que tiene movimientos registrados.");
+                }
+            }
+
             producto.Nombre = productoActualizado.Nombre.Trim();
-            producto.Descripcion = productoActualizado.Descripcion ?? string.Empty;
+            producto.Descripcion =
+                productoActualizado.Descripcion?.Trim() ?? string.Empty;
             producto.CodigoSku = codigoSku;
             producto.Precio = productoActualizado.Precio;
             producto.StockMinimo = productoActualizado.StockMinimo;
             producto.CategoriaId = productoActualizado.CategoriaId;
+            producto.UnidadMedidaId = productoActualizado.UnidadMedidaId;
 
             await _context.SaveChangesAsync();
 
@@ -242,12 +352,14 @@ namespace Inventario.Api.Controllers
                 datosPatch.StockMinimo == null &&
                 datosPatch.CategoriaId == null)
             {
-                return BadRequest("Debes enviar al menos un campo para actualizar.");
+                return BadRequest(
+                    "Debes enviar al menos un campo para actualizar.");
             }
 
             if (datosPatch.Stock.HasValue)
             {
-                return BadRequest("El stock solo puede modificarse mediante movimientos de inventario.");
+                return BadRequest(
+                    "El stock solo puede modificarse mediante movimientos de inventario.");
             }
 
             if (datosPatch.Nombre != null &&
@@ -262,10 +374,34 @@ namespace Inventario.Api.Controllers
                 return BadRequest("El precio no puede ser negativo.");
             }
 
-            if (datosPatch.StockMinimo.HasValue &&
-                datosPatch.StockMinimo.Value < 0)
+            if (datosPatch.StockMinimo.HasValue)
             {
-                return BadRequest("El stock mínimo no puede ser negativo.");
+                if (CantidadFueraDeRango(datosPatch.StockMinimo.Value))
+                {
+                    return BadRequest(
+                        "El stock mínimo debe ser positivo o cero, no superar el rango permitido y tener como máximo tres decimales.");
+                }
+
+                if (TieneFracciones(datosPatch.StockMinimo.Value))
+                {
+                    if (!producto.UnidadMedidaId.HasValue)
+                    {
+                        return BadRequest(
+                            "Debes asignar una unidad de medida para utilizar un stock mínimo decimal.");
+                    }
+
+                    var permiteFracciones = await _context.UnidadesMedida
+                        .AsNoTracking()
+                        .Where(u => u.Id == producto.UnidadMedidaId.Value)
+                        .Select(u => u.PermiteFracciones)
+                        .FirstOrDefaultAsync();
+
+                    if (!permiteFracciones)
+                    {
+                        return BadRequest(
+                            "La unidad de medida de este producto no permite cantidades decimales.");
+                    }
+                }
             }
 
             if (datosPatch.CodigoSku != null)
@@ -278,15 +414,18 @@ namespace Inventario.Api.Controllers
                 {
                     if (codigoSku.Length > 50)
                     {
-                        return BadRequest("El código SKU no puede superar los 50 caracteres.");
+                        return BadRequest(
+                            "El código SKU no puede superar los 50 caracteres.");
                     }
 
                     var existeSku = await _context.Productos
-                        .AnyAsync(p => p.CodigoSku == codigoSku && p.Id != id);
+                        .AnyAsync(
+                            p => p.CodigoSku == codigoSku && p.Id != id);
 
                     if (existeSku)
                     {
-                        return Conflict("Ya existe otro producto con ese código SKU.");
+                        return Conflict(
+                            "Ya existe otro producto con ese código SKU.");
                     }
                 }
 
@@ -296,7 +435,8 @@ namespace Inventario.Api.Controllers
             if (datosPatch.CategoriaId.HasValue)
             {
                 var existeCategoria = await _context.Categorias
-                    .AnyAsync(c => c.Id == datosPatch.CategoriaId.Value);
+                    .AnyAsync(
+                        c => c.Id == datosPatch.CategoriaId.Value);
 
                 if (!existeCategoria)
                 {
@@ -311,7 +451,7 @@ namespace Inventario.Api.Controllers
 
             if (datosPatch.Descripcion != null)
             {
-                producto.Descripcion = datosPatch.Descripcion;
+                producto.Descripcion = datosPatch.Descripcion.Trim();
             }
 
             if (datosPatch.Precio.HasValue)
@@ -349,7 +489,8 @@ namespace Inventario.Api.Controllers
 
             if (tieneMovimientos)
             {
-                return Conflict("No se puede eliminar un producto que tiene movimientos de stock registrados.");
+                return Conflict(
+                    "No se puede eliminar un producto que tiene movimientos de stock registrados.");
             }
 
             _context.Productos.Remove(producto);
@@ -360,4 +501,3 @@ namespace Inventario.Api.Controllers
         }
     }
 }
-

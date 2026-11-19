@@ -59,23 +59,54 @@ namespace Inventario.Api.Controllers
                 return BadRequest("La cantidad debe ser mayor que cero.");
             }
 
-            var existeProducto = await _context.Productos
-                .AnyAsync(p => p.Id == datos.ProductoId);
+            if (decimal.Round(datos.Cantidad, 3) != datos.Cantidad)
+            {
+                return BadRequest("La cantidad no puede superar tres decimales.");
+            }
 
-            if (!existeProducto)
+            var producto = await _context.Productos
+                .AsNoTracking()
+                .Where(p => p.Id == datos.ProductoId)
+                .Select(p => new
+                {
+                    p.UnidadMedidaId,
+                    PermiteFracciones = p.UnidadMedida != null &&
+                                       p.UnidadMedida.PermiteFracciones
+                })
+                .FirstOrDefaultAsync();
+
+            if (producto == null)
             {
                 return NotFound("Producto no encontrado.");
             }
 
-            await using var transaccion = await _context.Database.BeginTransactionAsync();
+            if (datos.Cantidad != decimal.Truncate(datos.Cantidad))
+            {
+                if (!producto.UnidadMedidaId.HasValue)
+                {
+                    return BadRequest(
+                        "El producto no tiene una unidad de medida asignada para registrar cantidades decimales.");
+                }
+
+                if (!producto.PermiteFracciones)
+                {
+                    return BadRequest(
+                        "La unidad de medida de este producto no permite cantidades decimales.");
+                }
+            }
+
+            await using var transaccion =
+                await _context.Database.BeginTransactionAsync();
 
             int filasActualizadas;
 
             if (datos.Tipo == TipoMovimiento.Entrada)
             {
+                const decimal stockMaximo = 999999999999999.999m;
+
                 filasActualizadas = await _context.Productos
                     .Where(p => p.Id == datos.ProductoId &&
-                                p.Stock <= int.MaxValue - datos.Cantidad)
+                                p.Stock <= stockMaximo - datos.Cantidad)
                     .ExecuteUpdateAsync(cambios =>
                         cambios.SetProperty(
                             p => p.Stock,
@@ -120,17 +151,20 @@ namespace Inventario.Api.Controllers
 
             await transaccion.CommitAsync();
 
-            return StatusCode(StatusCodes.Status201Created, new
-            {
-                mensaje = "Movimiento registrado correctamente.",
-                movimientoId = movimiento.Id,
-                productoId = movimiento.ProductoId,
-                tipo = movimiento.Tipo,
-                cantidad = movimiento.Cantidad,
-                stockActual
-            });
+            return StatusCode(
+                StatusCodes.Status201Created,
+                new
+                {
+                    mensaje = "Movimiento registrado correctamente.",
+                    movimientoId = movimiento.Id,
+                    productoId = movimiento.ProductoId,
+                    tipo = movimiento.Tipo,
+                    cantidad = movimiento.Cantidad,
+                    stockActual
+                });
         }
     }
 }
+
 
 

@@ -28,6 +28,18 @@ namespace Inventario.Api.Data
                 .HasPrecision(18, 2);
 
             modelBuilder.Entity<Producto>()
+                .Property(p => p.Stock)
+                .HasPrecision(18, 3);
+
+            modelBuilder.Entity<Producto>()
+                .Property(p => p.StockMinimo)
+                .HasPrecision(18, 3);
+
+            modelBuilder.Entity<MovimientoStock>()
+                .Property(m => m.Cantidad)
+                .HasPrecision(18, 3);
+
+            modelBuilder.Entity<Producto>()
                 .Property(p => p.CodigoSku)
                 .HasMaxLength(50);
 
@@ -36,6 +48,11 @@ namespace Inventario.Api.Data
                 .IsUnique()
                 .HasFilter("[CodigoSku] IS NOT NULL");
 
+            modelBuilder.Entity<Producto>()
+                .HasOne(p => p.Categoria)
+                .WithMany(c => c.Productos)
+                .HasForeignKey(p => p.CategoriaId)
+                .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<Producto>()
                 .HasOne(p => p.UnidadMedida)

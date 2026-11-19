@@ -11,10 +11,10 @@
         public string? CodigoSku { get; set; }
 
         public decimal Precio { get; set; }
+ 
+        public decimal Stock { get; set; }
 
-        public int Stock { get; set; }
-
-        public int StockMinimo { get; set; } = 5;
+        public decimal StockMinimo { get; set; } = 5m;
 
         public DateTime FechaCreacion { get; set; } = DateTime.UtcNow;
 

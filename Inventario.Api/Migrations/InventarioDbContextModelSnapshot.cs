@@ -56,8 +56,9 @@ namespace Inventario.Api.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<int>("Cantidad")
-                        .HasColumnType("int");
+                    b.Property<decimal>("Cantidad")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("decimal(18,3)");
 
                     b.Property<DateTime>("FechaMovimiento")
                         .HasColumnType("datetime2");
@@ -109,10 +110,15 @@ namespace Inventario.Api.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
-                    b.Property<int>("Stock")
-                        .HasColumnType("int");
+                    b.Property<decimal>("Stock")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("decimal(18,3)");
 
-                    b.Property<int>("StockMinimo")
+                    b.Property<decimal>("StockMinimo")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<int?>("UnidadMedidaId")
                         .HasColumnType("int");
 
                     b.HasKey("Id");
@@ -123,7 +129,33 @@ namespace Inventario.Api.Migrations
                         .IsUnique()
                         .HasFilter("[CodigoSku] IS NOT NULL");
 
+                    b.HasIndex("UnidadMedidaId");
+
                     b.ToTable("Productos");
+                });
+
+            modelBuilder.Entity("Inventario.Api.Models.UnidadMedida", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Abreviatura")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("PermiteFracciones")
+                        .HasColumnType("bit");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("UnidadesMedida");
                 });
 
             modelBuilder.Entity("Inventario.Api.Models.Categoria", b =>
@@ -154,7 +186,14 @@ namespace Inventario.Api.Migrations
                         .HasForeignKey("CategoriaId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("Inventario.Api.Models.UnidadMedida", "UnidadMedida")
+                        .WithMany()
+                        .HasForeignKey("UnidadMedidaId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("Categoria");
+
+                    b.Navigation("UnidadMedida");
                 });
 
             modelBuilder.Entity("Inventario.Api.Models.Categoria", b =>

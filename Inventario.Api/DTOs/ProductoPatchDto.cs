@@ -11,9 +11,9 @@ namespace Inventario.Api.DTOs
 
         public decimal? Precio { get; set; }
 
-        public int? Stock { get; set; }
+        public decimal? Stock { get; set; }
 
-        public int? StockMinimo { get; set; }
+        public decimal? StockMinimo { get; set; }
 
         public int? CategoriaId { get; set; }
     }
