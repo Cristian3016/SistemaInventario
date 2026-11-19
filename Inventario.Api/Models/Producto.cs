@@ -21,6 +21,11 @@
         public int? CategoriaId { get; set; }
 
         public Categoria? Categoria { get; set; }
+
+        public int? UnidadMedidaId { get; set; }
+
+        public UnidadMedida? UnidadMedida { get; set; }
+
     }
 }
 

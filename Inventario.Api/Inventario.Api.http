@@ -2,41 +2,56 @@
 @baseUrl = https://localhost:7076
 @productoId = 2
 @productoLGId = 5
-@categoriaId = 1
-@categoriaPerifericosId = 2
+@categoriaId = 1002
+@gasId = 1015
+
+@abrasivosId = 1016
+
 @productoEliminarId = 99999
 @categoriaEliminarId = 99999
 
-# ==========================================
-# PRODUCTOS
-# ==========================================
+
+### ==========================================
+### PRODUCTOS - GET
+### ==========================================
 
 ### GET - Obtener todos los productos
 GET {{baseUrl}}/api/productos
 Accept: application/json
 
-
 ### GET - Obtener producto por ID
 GET {{baseUrl}}/api/productos/{{productoId}}
 Accept: application/json
 
+### GET - Obtener productos con stock bajo
+GET {{baseUrl}}/api/productos/stock-bajo
+Accept: application/json
 
-### POST - Crear producto nuevo
+
+### ==========================================
+### PRODUCTOS - POST
+### ==========================================
+
+### POST - Crear producto de ferretería con stock inicial
 POST {{baseUrl}}/api/productos
 Content-Type: application/json
 
 {
-  "nombre": "Teclado Mecánico RGB",
-  "descripcion": "Teclado mecánico para gaming",
-  "codigoSku": "PER-001",
-  "precio": 85000,
-  "stock": 15,
-  "stockMinimo": 5,
-  "categoriaId": 2
+  "nombre": "Rollo de cable unipolar 2,5 mm² de 100 m",
+  "descripcion": "Cable unipolar para instalaciones eléctricas, presentación de rollo completo",
+  "codigoSku": "ELE-CAB-001",
+  "precio": 15000,
+  "stock": 10,
+  "stockMinimo": 2,
+  "categoriaId": 1003
 }
 
 
-### PUT - Actualizar producto completo
+### ==========================================
+### PRODUCTOS - PUT
+### ==========================================
+
+### PUT - Actualizar Monitor LG existente
 PUT {{baseUrl}}/api/productos/{{productoLGId}}
 Content-Type: application/json
 
@@ -51,7 +66,19 @@ Content-Type: application/json
 }
 
 
-### PATCH - Actualizar solamente el stock
+### ==========================================
+### PRODUCTOS - PATCH
+### ==========================================
+
+### PATCH - Cambiar precio sin modificar stock
+PATCH {{baseUrl}}/api/productos/{{productoId}}
+Content-Type: application/json
+
+{
+  "precio": 175000
+}
+
+### PATCH - Validar cambio directo de stock (400)
 PATCH {{baseUrl}}/api/productos/{{productoId}}
 Content-Type: application/json
 
@@ -59,41 +86,7 @@ Content-Type: application/json
   "stock": 20
 }
 
-
-### DELETE - Eliminar producto de prueba
-DELETE {{baseUrl}}/api/productos/{{productoEliminarId}}
-Accept: application/json
-
-
-# ==========================================
-# VALIDACIONES DE PRODUCTOS
-# ==========================================
-
-### POST - Comprobar SKU duplicado (409)
-POST {{baseUrl}}/api/productos
-Content-Type: application/json
-
-{
-  "nombre": "Monitor de prueba",
-  "descripcion": "Prueba de SKU duplicado",
-  "codigoSku": "MON-001",
-  "precio": 150000,
-  "stock": 10,
-  "stockMinimo": 3,
-  "categoriaId": 1
-}
-
-
-### PATCH - Comprobar SKU duplicado (409)
-PATCH {{baseUrl}}/api/productos/{{productoLGId}}
-Content-Type: application/json
-
-{
-  "codigoSku": "MON-001"
-}
-
-
-### PATCH - Comprobar stock mínimo negativo (400)
+### PATCH - Validar stock mínimo negativo (400)
 PATCH {{baseUrl}}/api/productos/{{productoId}}
 Content-Type: application/json
 
@@ -101,8 +94,7 @@ Content-Type: application/json
   "stockMinimo": -5
 }
 
-
-### PATCH - Comprobar categoría inexistente (400)
+### PATCH - Validar categoría inexistente (400)
 PATCH {{baseUrl}}/api/productos/{{productoId}}
 Content-Type: application/json
 
@@ -111,103 +103,70 @@ Content-Type: application/json
 }
 
 
-# ==========================================
-# CATEGORÍAS
-# ==========================================
+### ==========================================
+### PRODUCTOS - DELETE
+### ==========================================
+
+### DELETE - Eliminar producto de prueba por ID
+DELETE {{baseUrl}}/api/productos/{{productoEliminarId}}
+Accept: application/json
+
+
+### ==========================================
+### CATEGORÍAS - GET
+### ==========================================
 
 ### GET - Obtener todas las categorías
 GET {{baseUrl}}/api/categorias
 Accept: application/json
-
 
 ### GET - Obtener categoría por ID
 GET {{baseUrl}}/api/categorias/{{categoriaId}}
 Accept: application/json
 
 
-### POST - Crear nueva categoría
-POST {{baseUrl}}/api/categorias
+### ==========================================
+### CATEGORÍAS - POST
+### ==========================================
+
+
+
+### ==========================================
+### CATEGORÍAS - PUT
+### ==========================================
+
+### PUT - Actualizar categoría Electricidad
+PUT {{baseUrl}}/api/categorias/{{categoriaId}}
 Content-Type: application/json
 
 {
-  "nombre": "Impresoras",
-  "descripcion": "Impresoras láser, tinta y multifunción"
+  "nombre": "Electricidad",
+  "descripcion": "Materiales eléctricos, cables, protecciones, instalaciones y accesorios eléctricos.",
+  "categoriaPadreId": null
 }
 
 
-### PUT - Actualizar categoría Periféricos
-PUT {{baseUrl}}/api/categorias/{{categoriaPerifericosId}}
-Content-Type: application/json
+### ==========================================
+### CATEGORÍAS - DELETE
+### ==========================================
 
-{
-  "nombre": "Periféricos",
-  "descripcion": "Teclados, mouse, auriculares, webcams y accesorios para computadoras"
-}
-
-
-### DELETE - Eliminar categoría de prueba
+### DELETE - Eliminar categoría de prueba por ID
 DELETE {{baseUrl}}/api/categorias/{{categoriaEliminarId}}
 Accept: application/json
 
 
-# ==========================================
-# VALIDACIONES DE CATEGORÍAS
-# ==========================================
+### ==========================================
+### MOVIMIENTOS DE STOCK - GET
+### ==========================================
 
-### POST - Comprobar categoría duplicada (409)
-POST {{baseUrl}}/api/categorias
-Content-Type: application/json
-
-{
-  "nombre": "Monitores",
-  "descripcion": "Categoría duplicada de prueba"
-}
-
-### PATCH - Comprobar categoría inexistente (400)
-PATCH {{baseUrl}}/api/productos/{{productoId}}
-Content-Type: application/json
-
-{
-  "categoriaId": 99999
-}
-
-
-### PATCH - Actualizar precio, stock y stock mínimo
-PATCH {{baseUrl}}/api/productos/{{productoId}}
-Content-Type: application/json
-
-{
-  "precio": 175000,
-  "stock": 15,
-  "stockMinimo": 5
-}
-
-### GET - Obtener productos con stock bajo
-GET {{baseUrl}}/api/productos/stock-bajo
+### GET - Obtener historial de movimientos
+GET {{baseUrl}}/api/movimientosstock
 Accept: application/json
 
 
-### PATCH - Simular stock bajo
-PATCH {{baseUrl}}/api/productos/2
-Content-Type: application/json
-
-{
-  "stock": 3
-}
-###
-GET {{baseUrl}}/api/productos/stock-bajo
-Accept: application/json
-
-
-### PATCH - Reponer stock del Monitor Samsung
-PATCH {{baseUrl}}/api/productos/2
-Content-Type: application/json
-
-{
-  "stock": 15
-}
-
-### MOVIMIENTOS DE STOCK
+### ==========================================
+### MOVIMIENTOS DE STOCK - POST
+### ==========================================
 
 ### POST - Registrar entrada de mercadería
 POST {{baseUrl}}/api/movimientosstock
@@ -217,10 +176,10 @@ Content-Type: application/json
   "productoId": 2,
   "tipo": 1,
   "cantidad": 10,
-  "observacion": "Ingreso de 10 monitores Samsung del proveedor"
+  "observacion": "Ingreso de mercadería"
 }
 
-###
+### POST - Registrar salida de mercadería
 POST {{baseUrl}}/api/movimientosstock
 Content-Type: application/json
 
@@ -228,10 +187,19 @@ Content-Type: application/json
   "productoId": 2,
   "tipo": 2,
   "cantidad": 5,
-  "observacion": "Venta de 5 monitores Samsung"
+  "observacion": "Salida de mercadería"
 }
 
+### POST - Validar stock insuficiente (409)
+POST {{baseUrl}}/api/movimientosstock
+Content-Type: application/json
 
+{
+  "productoId": 2,
+  "tipo": 2,
+  "cantidad": 50000,
+  "observacion": "Prueba de salida con stock insuficiente"
+}
 
 
 

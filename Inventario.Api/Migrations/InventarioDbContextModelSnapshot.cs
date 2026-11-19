@@ -30,6 +30,9 @@ namespace Inventario.Api.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<int?>("CategoriaPadreId")
+                        .HasColumnType("int");
+
                     b.Property<string>("Descripcion")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -39,6 +42,8 @@ namespace Inventario.Api.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CategoriaPadreId");
 
                     b.ToTable("Categorias");
                 });
@@ -121,6 +126,16 @@ namespace Inventario.Api.Migrations
                     b.ToTable("Productos");
                 });
 
+            modelBuilder.Entity("Inventario.Api.Models.Categoria", b =>
+                {
+                    b.HasOne("Inventario.Api.Models.Categoria", "CategoriaPadre")
+                        .WithMany("Subcategorias")
+                        .HasForeignKey("CategoriaPadreId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("CategoriaPadre");
+                });
+
             modelBuilder.Entity("Inventario.Api.Models.MovimientoStock", b =>
                 {
                     b.HasOne("Inventario.Api.Models.Producto", "Producto")
@@ -145,6 +160,8 @@ namespace Inventario.Api.Migrations
             modelBuilder.Entity("Inventario.Api.Models.Categoria", b =>
                 {
                     b.Navigation("Productos");
+
+                    b.Navigation("Subcategorias");
                 });
 #pragma warning restore 612, 618
         }

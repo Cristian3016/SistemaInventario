@@ -28,7 +28,6 @@ namespace Inventario.Api.Controllers
             return Ok(productos);
         }
 
-
         [HttpGet("stock-bajo")]
         public async Task<IActionResult> ObtenerProductosConStockBajo()
         {
@@ -55,7 +54,6 @@ namespace Inventario.Api.Controllers
             });
         }
 
-
         [HttpGet("{id:int}")]
         public async Task<ActionResult<Producto>> ObtenerProductoPorId(int id)
         {
@@ -70,6 +68,7 @@ namespace Inventario.Api.Controllers
 
             return Ok(producto);
         }
+
 
         [HttpPost]
         public async Task<ActionResult<Producto>> CrearProducto([FromBody] Producto nuevoProducto)
@@ -131,6 +130,20 @@ namespace Inventario.Api.Controllers
 
             _context.Productos.Add(producto);
 
+            if (nuevoProducto.Stock > 0)
+            {
+                var movimientoInicial = new MovimientoStock
+                {
+                    Producto = producto,
+                    Tipo = TipoMovimiento.Entrada,
+                    Cantidad = nuevoProducto.Stock,
+                    Observacion = "Registro de stock inicial del producto.",
+                    FechaMovimiento = DateTime.UtcNow
+                };
+
+                _context.MovimientosStock.Add(movimientoInicial);
+            }
+
             await _context.SaveChangesAsync();
 
             return CreatedAtAction(
@@ -139,8 +152,10 @@ namespace Inventario.Api.Controllers
                 producto);
         }
 
+
         [HttpPut("{id:int}")]
-        public async Task<IActionResult> ActualizarProducto(int id, [FromBody] Producto productoActualizado)
+        public async Task<IActionResult> ActualizarProducto(
+            int id, [FromBody] Producto productoActualizado)
         {
             var producto = await _context.Productos.FindAsync(id);
 
@@ -149,16 +164,20 @@ namespace Inventario.Api.Controllers
                 return NotFound("Producto no encontrado.");
             }
 
+            if (productoActualizado.Stock != producto.Stock)
+            {
+                return BadRequest("El stock solo puede modificarse mediante movimientos de inventario.");
+            }
+
             if (string.IsNullOrWhiteSpace(productoActualizado.Nombre))
             {
                 return BadRequest("El nombre es obligatorio.");
             }
 
             if (productoActualizado.Precio < 0 ||
-                productoActualizado.Stock < 0 ||
                 productoActualizado.StockMinimo < 0)
             {
-                return BadRequest("El precio, el stock y el stock mínimo no pueden ser negativos.");
+                return BadRequest("El precio y el stock mínimo no pueden ser negativos.");
             }
 
             var codigoSku = string.IsNullOrWhiteSpace(productoActualizado.CodigoSku)
@@ -196,7 +215,6 @@ namespace Inventario.Api.Controllers
             producto.Descripcion = productoActualizado.Descripcion ?? string.Empty;
             producto.CodigoSku = codigoSku;
             producto.Precio = productoActualizado.Precio;
-            producto.Stock = productoActualizado.Stock;
             producto.StockMinimo = productoActualizado.StockMinimo;
             producto.CategoriaId = productoActualizado.CategoriaId;
 
@@ -227,20 +245,21 @@ namespace Inventario.Api.Controllers
                 return BadRequest("Debes enviar al menos un campo para actualizar.");
             }
 
+            if (datosPatch.Stock.HasValue)
+            {
+                return BadRequest("El stock solo puede modificarse mediante movimientos de inventario.");
+            }
+
             if (datosPatch.Nombre != null &&
                 string.IsNullOrWhiteSpace(datosPatch.Nombre))
             {
                 return BadRequest("El nombre no puede estar vacío.");
             }
 
-            if (datosPatch.Precio.HasValue && datosPatch.Precio.Value < 0)
+            if (datosPatch.Precio.HasValue &&
+                datosPatch.Precio.Value < 0)
             {
                 return BadRequest("El precio no puede ser negativo.");
-            }
-
-            if (datosPatch.Stock.HasValue && datosPatch.Stock.Value < 0)
-            {
-                return BadRequest("El stock no puede ser negativo.");
             }
 
             if (datosPatch.StockMinimo.HasValue &&
@@ -300,11 +319,6 @@ namespace Inventario.Api.Controllers
                 producto.Precio = datosPatch.Precio.Value;
             }
 
-            if (datosPatch.Stock.HasValue)
-            {
-                producto.Stock = datosPatch.Stock.Value;
-            }
-
             if (datosPatch.StockMinimo.HasValue)
             {
                 producto.StockMinimo = datosPatch.StockMinimo.Value;
@@ -330,6 +344,14 @@ namespace Inventario.Api.Controllers
                 return NotFound("Producto no encontrado.");
             }
 
+            var tieneMovimientos = await _context.MovimientosStock
+                .AnyAsync(m => m.ProductoId == id);
+
+            if (tieneMovimientos)
+            {
+                return Conflict("No se puede eliminar un producto que tiene movimientos de stock registrados.");
+            }
+
             _context.Productos.Remove(producto);
 
             await _context.SaveChangesAsync();
@@ -338,3 +360,4 @@ namespace Inventario.Api.Controllers
         }
     }
 }
+
