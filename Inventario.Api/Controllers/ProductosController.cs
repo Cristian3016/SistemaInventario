@@ -1,5 +1,5 @@
-﻿using Inventario.Api.Data;
-using Inventario.Api.DTOs;
+﻿using Inventario.Api.DTOs;
+using Inventario.Api.Data;
 using Inventario.Api.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -37,7 +37,8 @@ namespace Inventario.Api.Controllers
         {
             IQueryable<Producto> consulta = _context.Productos
                 .AsNoTracking()
-                .Include(p => p.UnidadMedida);
+                .Include(p => p.UnidadMedida)
+                .Include(p => p.Marca);
 
             if (activo.HasValue)
             {
@@ -55,6 +56,7 @@ namespace Inventario.Api.Controllers
             var productos = await _context.Productos
                 .AsNoTracking()
                 .Include(p => p.UnidadMedida)
+                .Include(p => p.Marca)
                 .Where(p => p.Activo &&
                             p.StockMinimo > 0 &&
                             p.Stock <= p.StockMinimo)
@@ -84,6 +86,7 @@ namespace Inventario.Api.Controllers
             var producto = await _context.Productos
                 .AsNoTracking()
                 .Include(p => p.UnidadMedida)
+                .Include(p => p.Marca)
                 .FirstOrDefaultAsync(p => p.Id == id);
 
             if (producto == null)
@@ -123,6 +126,17 @@ namespace Inventario.Api.Controllers
                 if (!existeCategoria)
                 {
                     return BadRequest("La categoría indicada no existe.");
+                }
+            }
+
+            if (nuevoProducto.MarcaId.HasValue)
+            {
+                var existeMarca = await _context.Marcas
+                    .AnyAsync(m => m.Id == nuevoProducto.MarcaId.Value);
+
+                if (!existeMarca)
+                {
+                    return BadRequest("La marca indicada no existe.");
                 }
             }
 
@@ -189,6 +203,7 @@ namespace Inventario.Api.Controllers
                 StockMinimo = nuevoProducto.StockMinimo,
                 CategoriaId = nuevoProducto.CategoriaId,
                 UnidadMedidaId = nuevoProducto.UnidadMedidaId,
+                MarcaId = nuevoProducto.MarcaId,
                 FechaCreacion = DateTime.UtcNow
             };
 
@@ -280,12 +295,22 @@ namespace Inventario.Api.Controllers
             if (productoActualizado.CategoriaId.HasValue)
             {
                 var existeCategoria = await _context.Categorias
-                    .AnyAsync(
-                        c => c.Id == productoActualizado.CategoriaId.Value);
+                    .AnyAsync(c => c.Id == productoActualizado.CategoriaId.Value);
 
                 if (!existeCategoria)
                 {
                     return BadRequest("La categoría indicada no existe.");
+                }
+            }
+
+            if (productoActualizado.MarcaId.HasValue)
+            {
+                var existeMarca = await _context.Marcas
+                    .AnyAsync(m => m.Id == productoActualizado.MarcaId.Value);
+
+                if (!existeMarca)
+                {
+                    return BadRequest("La marca indicada no existe.");
                 }
             }
 
@@ -320,8 +345,7 @@ namespace Inventario.Api.Controllers
                 }
             }
 
-            if (producto.UnidadMedidaId.HasValue &&
-                producto.UnidadMedidaId != productoActualizado.UnidadMedidaId)
+            if (producto.UnidadMedidaId != productoActualizado.UnidadMedidaId)
             {
                 var tieneMovimientos = await _context.MovimientosStock
                     .AnyAsync(m => m.ProductoId == id);
@@ -341,6 +365,11 @@ namespace Inventario.Api.Controllers
             producto.StockMinimo = productoActualizado.StockMinimo;
             producto.CategoriaId = productoActualizado.CategoriaId;
             producto.UnidadMedidaId = productoActualizado.UnidadMedidaId;
+
+            if (productoActualizado.MarcaId.HasValue)
+            {
+                producto.MarcaId = productoActualizado.MarcaId.Value;
+            }
 
             await _context.SaveChangesAsync();
 
@@ -370,7 +399,8 @@ namespace Inventario.Api.Controllers
                 datosPatch.Precio == null &&
                 datosPatch.Stock == null &&
                 datosPatch.StockMinimo == null &&
-                datosPatch.CategoriaId == null)
+                datosPatch.CategoriaId == null &&
+                datosPatch.MarcaId == null)
             {
                 return BadRequest(
                     "Debes enviar al menos un campo para actualizar.");
@@ -464,6 +494,17 @@ namespace Inventario.Api.Controllers
                 }
             }
 
+            if (datosPatch.MarcaId.HasValue)
+            {
+                var existeMarca = await _context.Marcas
+                    .AnyAsync(m => m.Id == datosPatch.MarcaId.Value);
+
+                if (!existeMarca)
+                {
+                    return BadRequest("La marca indicada no existe.");
+                }
+            }
+
             if (datosPatch.Nombre != null)
             {
                 producto.Nombre = datosPatch.Nombre.Trim();
@@ -487,6 +528,11 @@ namespace Inventario.Api.Controllers
             if (datosPatch.CategoriaId.HasValue)
             {
                 producto.CategoriaId = datosPatch.CategoriaId.Value;
+            }
+
+            if (datosPatch.MarcaId.HasValue)
+            {
+                producto.MarcaId = datosPatch.MarcaId.Value;
             }
 
             await _context.SaveChangesAsync();

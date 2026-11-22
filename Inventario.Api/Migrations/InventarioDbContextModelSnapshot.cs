@@ -48,6 +48,97 @@ namespace Inventario.Api.Migrations
                     b.ToTable("Categorias");
                 });
 
+            modelBuilder.Entity("Inventario.Api.Models.Compra", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime>("FechaCompra")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("NumeroComprobante")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("ProveedorId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("Total")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProveedorId");
+
+                    b.ToTable("Compras");
+                });
+
+            modelBuilder.Entity("Inventario.Api.Models.DetalleCompra", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("Cantidad")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<int>("CompraId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("PrecioUnitario")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("ProductoId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("Subtotal")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductoId");
+
+                    b.HasIndex("CompraId", "ProductoId")
+                        .IsUnique();
+
+                    b.ToTable("DetallesCompra");
+                });
+
+            modelBuilder.Entity("Inventario.Api.Models.Marca", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Descripcion")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Marcas");
+                });
+
             modelBuilder.Entity("Inventario.Api.Models.MovimientoStock", b =>
                 {
                     b.Property<int>("Id")
@@ -107,6 +198,9 @@ namespace Inventario.Api.Migrations
                     b.Property<DateTime>("FechaCreacion")
                         .HasColumnType("datetime2");
 
+                    b.Property<int?>("MarcaId")
+                        .HasColumnType("int");
+
                     b.Property<string>("Nombre")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -134,9 +228,90 @@ namespace Inventario.Api.Migrations
                         .IsUnique()
                         .HasFilter("[CodigoSku] IS NOT NULL");
 
+                    b.HasIndex("MarcaId");
+
                     b.HasIndex("UnidadMedidaId");
 
                     b.ToTable("Productos");
+                });
+
+            modelBuilder.Entity("Inventario.Api.Models.ProductoProveedor", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ProductoId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ProveedorId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProveedorId");
+
+                    b.HasIndex("ProductoId", "ProveedorId")
+                        .IsUnique();
+
+                    b.ToTable("ProductoProveedores");
+                });
+
+            modelBuilder.Entity("Inventario.Api.Models.Proveedor", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("Activo")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("Contacto")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("Cuit")
+                        .HasMaxLength(11)
+                        .HasColumnType("nvarchar(11)");
+
+                    b.Property<string>("Direccion")
+                        .HasMaxLength(250)
+                        .HasColumnType("nvarchar(250)");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(254)
+                        .HasColumnType("nvarchar(254)");
+
+                    b.Property<DateTime>("FechaCreacion")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("NombreFantasia")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("RazonSocial")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Telefono")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Cuit")
+                        .IsUnique()
+                        .HasFilter("[Cuit] IS NOT NULL");
+
+                    b.ToTable("Proveedores");
                 });
 
             modelBuilder.Entity("Inventario.Api.Models.UnidadMedida", b =>
@@ -173,6 +348,36 @@ namespace Inventario.Api.Migrations
                     b.Navigation("CategoriaPadre");
                 });
 
+            modelBuilder.Entity("Inventario.Api.Models.Compra", b =>
+                {
+                    b.HasOne("Inventario.Api.Models.Proveedor", "Proveedor")
+                        .WithMany()
+                        .HasForeignKey("ProveedorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Proveedor");
+                });
+
+            modelBuilder.Entity("Inventario.Api.Models.DetalleCompra", b =>
+                {
+                    b.HasOne("Inventario.Api.Models.Compra", "Compra")
+                        .WithMany()
+                        .HasForeignKey("CompraId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Inventario.Api.Models.Producto", "Producto")
+                        .WithMany()
+                        .HasForeignKey("ProductoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Compra");
+
+                    b.Navigation("Producto");
+                });
+
             modelBuilder.Entity("Inventario.Api.Models.MovimientoStock", b =>
                 {
                     b.HasOne("Inventario.Api.Models.Producto", "Producto")
@@ -191,6 +396,11 @@ namespace Inventario.Api.Migrations
                         .HasForeignKey("CategoriaId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("Inventario.Api.Models.Marca", "Marca")
+                        .WithMany()
+                        .HasForeignKey("MarcaId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Inventario.Api.Models.UnidadMedida", "UnidadMedida")
                         .WithMany()
                         .HasForeignKey("UnidadMedidaId")
@@ -198,7 +408,28 @@ namespace Inventario.Api.Migrations
 
                     b.Navigation("Categoria");
 
+                    b.Navigation("Marca");
+
                     b.Navigation("UnidadMedida");
+                });
+
+            modelBuilder.Entity("Inventario.Api.Models.ProductoProveedor", b =>
+                {
+                    b.HasOne("Inventario.Api.Models.Producto", "Producto")
+                        .WithMany()
+                        .HasForeignKey("ProductoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Inventario.Api.Models.Proveedor", "Proveedor")
+                        .WithMany()
+                        .HasForeignKey("ProveedorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Producto");
+
+                    b.Navigation("Proveedor");
                 });
 
             modelBuilder.Entity("Inventario.Api.Models.Categoria", b =>

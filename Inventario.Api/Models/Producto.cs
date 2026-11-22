@@ -29,6 +29,11 @@
 
         public UnidadMedida? UnidadMedida { get; set; }
 
+        public int? MarcaId { get; set; }
+
+        public Marca? Marca { get; set; }
+
+
     }
 }
 

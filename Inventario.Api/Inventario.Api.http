@@ -441,6 +441,710 @@ GET {{baseUrl}}/api/productos/stock-bajo
 DELETE {{baseUrl}}/api/productos/8
 
 
+### Paso 114.9 - Registrar marca Bosch
+POST {{baseUrl}}/api/marcas
+Content-Type: application/json
+
+{
+  "nombre": "Bosch",
+  "descripcion": "Fabricante de herramientas eléctricas, accesorios y equipos profesionales"
+}
+
+### Paso 114.10 - Consultar todas las marcas
+GET {{baseUrl}}/api/marcas
+
+
+### Paso 114.11 - Registrar marca Makita
+POST {{baseUrl}}/api/marcas
+Content-Type: application/json
+
+{
+  "nombre": "Makita",
+  "descripcion": "Herramientas eléctricas y accesorios profesionales"
+}
+
+### Paso 114.11 - Registrar marca Stanley
+POST {{baseUrl}}/api/marcas
+Content-Type: application/json
+
+{
+  "nombre": "Stanley",
+  "descripcion": "Herramientas manuales, instrumentos de medición y accesorios"
+}
+
+### Paso 114.11 - Registrar marca DeWalt
+POST {{baseUrl}}/api/marcas
+Content-Type: application/json
+
+{
+  "nombre": "DeWalt",
+  "descripcion": "Herramientas eléctricas y equipos para construcción"
+}
+
+### Paso 114.11 - Registrar marca Truper
+POST {{baseUrl}}/api/marcas
+Content-Type: application/json
+
+{
+  "nombre": "Truper",
+  "descripcion": "Herramientas manuales, ferretería y accesorios"
+}
+
+### Paso 114.14 - Actualizar marca Bosch
+PUT {{baseUrl}}/api/marcas/1
+Content-Type: application/json
+
+{
+  "nombre": "Bosch",
+  "descripcion": "Herramientas eléctricas, accesorios y soluciones profesionales para ferreterías"
+}
+
+### Paso 114.15 - Verificar actualización de Bosch
+GET {{baseUrl}}/api/marcas/1
+
+### Paso 114.17 - Intentar eliminar una marca inexistente
+DELETE {{baseUrl}}/api/marcas/99999
+
+### Paso 114.19 - Crear producto asociado a Bosch
+POST {{baseUrl}}/api/productos
+Content-Type: application/json
+
+{
+  "nombre": "Taladro Bosch de prueba",
+  "descripcion": "Taladro eléctrico para comprobar la relación entre productos y marcas",
+  "codigoSku": "TEST-BOSCH-11419",
+  "precio": 75000,
+  "stock": 0,
+  "stockMinimo": 0,
+  "categoriaId": 1007,
+  "unidadMedidaId": 1,
+  "marcaId": 1
+}
+
+### Paso 114.21 - Impedir eliminar una marca con productos asociados
+DELETE {{baseUrl}}/api/marcas/1
+
+
+### Paso 114.21.2 - Recuperar marca Bosch
+POST {{baseUrl}}/api/marcas
+Content-Type: application/json
+
+{
+  "nombre": "Bosch",
+  "descripcion": "Herramientas eléctricas, accesorios y soluciones profesionales para ferreterías"
+}
+
+### Paso 114.21.5 - Asociar taladro con Bosch
+PATCH {{baseUrl}}/api/productos/9
+Content-Type: application/json
+
+{
+  "marcaId": 6
+}
+
+### Paso 114.21.7 - Impedir eliminar Bosch con productos asociados
+DELETE {{baseUrl}}/api/marcas/6
+
+### Paso 114.21.8 - Rechazar marca inexistente
+PATCH {{baseUrl}}/api/productos/9
+Content-Type: application/json
+
+{
+  "marcaId": 999999
+}
+
+### Paso 114.22.2 - Consultar producto con su marca
+GET {{baseUrl}}/api/productos/9
+
+### Paso 114.22.4 - Listar productos con sus marcas
+GET {{baseUrl}}/api/productos
+
+### Paso 114.22.6 - Consultar productos con stock bajo y sus marcas
+GET {{baseUrl}}/api/productos/stock-bajo
+
+### Paso 114.22.8 - Actualizar producto con marca mediante PUT
+PUT {{baseUrl}}/api/productos/9
+Content-Type: application/json
+
+{
+  "nombre": "Taladro Bosch de prueba",
+  "descripcion": "Taladro eléctrico para comprobar la relación entre productos y marcas",
+  "codigoSku": "TEST-BOSCH-11419",
+  "precio": 75000,
+  "stock": 0,
+  "stockMinimo": 0,
+  "categoriaId": 1007,
+  "unidadMedidaId": 1,
+  "marcaId": 6
+}
+
+### Paso 114.22.9 - Verificar marca después del PUT
+GET {{baseUrl}}/api/productos/9
+
+### Paso 114.22.10 - Rechazar marca inexistente mediante PUT
+PUT {{baseUrl}}/api/productos/9
+Content-Type: application/json
+
+{
+  "nombre": "Taladro Bosch de prueba",
+  "descripcion": "Taladro eléctrico para comprobar la relación entre productos y marcas",
+  "codigoSku": "TEST-BOSCH-11419",
+  "precio": 75000,
+  "stock": 0,
+  "stockMinimo": 0,
+  "categoriaId": 1007,
+  "unidadMedidaId": 1,
+  "marcaId": 999999
+}
+
+### Paso 115.9 - Consultar todos los proveedores
+GET {{baseUrl}}/api/proveedores
+
+### Paso 115.11 - Registrar primer proveedor
+POST {{baseUrl}}/api/proveedores
+Content-Type: application/json
+
+{
+  "razonSocial": "Distribuidora de Herramientas Demo",
+  "nombreFantasia": "Distribuidora Demo",
+  "cuit": null,
+  "email": "ventas@example.com",
+  "telefono": "3515550000",
+  "direccion": "Córdoba, Argentina",
+  "contacto": "Contacto de prueba"
+}
+
+### Paso 115.14 - Consultar proveedor por ID
+GET {{baseUrl}}/api/proveedores/1
+
+### Paso 115.15 - Consultar proveedor inexistente
+GET {{baseUrl}}/api/proveedores/999999
+
+
+### Paso 115.17 - Actualizar proveedor mediante PUT
+PUT {{baseUrl}}/api/proveedores/1
+Content-Type: application/json
+
+{
+  "razonSocial": "Distribuidora de Herramientas Demo SRL",
+  "nombreFantasia": "Distribuidora Demo",
+  "cuit": null,
+  "email": "contacto@example.com",
+  "telefono": "3515551111",
+  "direccion": "Córdoba, Argentina",
+  "contacto": "Departamento de Ventas"
+}
+
+### Paso 115.19 - Actualizar proveedor inexistente
+PUT {{baseUrl}}/api/proveedores/999999
+Content-Type: application/json
+
+{
+  "razonSocial": "Proveedor Inexistente",
+  "nombreFantasia": "Prueba",
+  "cuit": null,
+  "email": "prueba@example.com",
+  "telefono": "3515550000",
+  "direccion": "Córdoba, Argentina",
+  "contacto": "Contacto de prueba"
+}
+
+### Paso 115.20 - Rechazar CUIT con formato incorrecto
+POST {{baseUrl}}/api/proveedores
+Content-Type: application/json
+
+{
+  "razonSocial": "Proveedor de prueba CUIT incorrecto",
+  "nombreFantasia": "Prueba CUIT",
+  "cuit": "12345",
+  "email": "prueba@example.com",
+  "telefono": "3515550000",
+  "direccion": "Córdoba, Argentina",
+  "contacto": "Contacto de prueba"
+}
+
+### Paso 115.21 - Rechazar CUIT con letras
+POST {{baseUrl}}/api/proveedores
+Content-Type: application/json
+
+{
+  "razonSocial": "Proveedor de prueba CUIT con letras",
+  "nombreFantasia": "Prueba CUIT",
+  "cuit": "20A34567891",
+  "email": "prueba@example.com",
+  "telefono": "3515550000",
+  "direccion": "Córdoba, Argentina",
+  "contacto": "Contacto de prueba"
+}
+
+### Paso 115.22 - Rechazar CUIT con guiones
+POST {{baseUrl}}/api/proveedores
+Content-Type: application/json
+
+{
+  "razonSocial": "Proveedor de prueba CUIT con guiones",
+  "nombreFantasia": "Prueba CUIT",
+  "cuit": "20-12345678-3",
+  "email": "prueba@example.com",
+  "telefono": "3515550000",
+  "direccion": "Córdoba, Argentina",
+  "contacto": "Contacto de prueba"
+}
+
+### Paso 115.25 - Rechazar CUIT con dígito verificador incorrecto
+POST {{baseUrl}}/api/proveedores
+Content-Type: application/json
+
+{
+  "razonSocial": "Proveedor de prueba CUIT inválido",
+  "nombreFantasia": "Prueba Verificador",
+  "cuit": "20123456780",
+  "email": "prueba@example.com",
+  "telefono": "3515550000",
+  "direccion": "Córdoba, Argentina",
+  "contacto": "Contacto de prueba"
+}
+
+### Paso 115.26 - Registrar proveedor con CUIT válido
+POST {{baseUrl}}/api/proveedores
+Content-Type: application/json
+
+{
+  "razonSocial": "Distribuidora de Materiales de Prueba SRL",
+  "nombreFantasia": "Materiales Demo",
+  "cuit": "20123456786",
+  "email": "materiales@example.com",
+  "telefono": "3515552222",
+  "direccion": "Córdoba, Argentina",
+  "contacto": "Departamento Comercial"
+}
+
+### Paso 115.28 - Rechazar CUIT duplicado
+POST {{baseUrl}}/api/proveedores
+Content-Type: application/json
+
+{
+  "razonSocial": "Otra Distribuidora de Prueba SRL",
+  "nombreFantasia": "Distribuidora Duplicada",
+  "cuit": "20123456786",
+  "email": "duplicado@example.com",
+  "telefono": "3515553333",
+  "direccion": "Córdoba, Argentina",
+  "contacto": "Contacto de prueba"
+}
+
+### Paso 115.30 - Rechazar CUIT duplicado mediante PUT
+PUT {{baseUrl}}/api/proveedores/1
+Content-Type: application/json
+
+{
+  "razonSocial": "Distribuidora de Herramientas Demo SRL",
+  "nombreFantasia": "Distribuidora Demo",
+  "cuit": "20123456786",
+  "email": "contacto@example.com",
+  "telefono": "3515551111",
+  "direccion": "Córdoba, Argentina",
+  "contacto": "Departamento de Ventas"
+}
+
+### Paso 115.31 - Rechazar CUIT inválido mediante PUT
+PUT {{baseUrl}}/api/proveedores/1
+Content-Type: application/json
+
+{
+  "razonSocial": "Distribuidora de Herramientas Demo SRL",
+  "nombreFantasia": "Distribuidora Demo",
+  "cuit": "20123456780",
+  "email": "contacto@example.com",
+  "telefono": "3515551111",
+  "direccion": "Córdoba, Argentina",
+  "contacto": "Departamento de Ventas"
+}
+
+### Paso 115.32 - Rechazar razón social vacía mediante PUT
+PUT {{baseUrl}}/api/proveedores/1
+Content-Type: application/json
+
+{
+  "razonSocial": "",
+  "nombreFantasia": "Distribuidora Demo",
+  "cuit": null,
+  "email": "contacto@example.com",
+  "telefono": "3515551111",
+  "direccion": "Córdoba, Argentina",
+  "contacto": "Departamento de Ventas"
+}
+
+### Paso 115.33 - Rechazar proveedor sin razón social
+POST {{baseUrl}}/api/proveedores
+Content-Type: application/json
+
+{
+  "razonSocial": "",
+  "nombreFantasia": "Proveedor Sin Nombre",
+  "cuit": null,
+  "email": "prueba@example.com",
+  "telefono": "3515550000",
+  "direccion": "Córdoba, Argentina",
+  "contacto": "Contacto de prueba"
+}
+
+### Paso 115.34 - Rechazar razón social demasiado larga
+POST {{baseUrl}}/api/proveedores
+Content-Type: application/json
+
+{
+  "razonSocial": "Distribuidora de herramientas y materiales electricos, articulos de plomeria, pintureria, construccion, ferreteria industrial, accesorios profesionales y suministros para negocios mayoristas y minoristas de toda la provincia de Cordoba",
+  "nombreFantasia": "Proveedor de prueba",
+  "cuit": null
+}
+
+### Paso 115.36 - Rechazar correo electrónico inválido
+POST {{baseUrl}}/api/proveedores
+Content-Type: application/json
+
+{
+  "razonSocial": "Proveedor de prueba Email Invalido",
+  "nombreFantasia": "Prueba Email",
+  "cuit": null,
+  "email": "correo-invalido",
+  "telefono": "3515550000",
+  "direccion": "Cordoba, Argentina",
+  "contacto": "Contacto de prueba"
+}
+
+### Paso 115.37 - Rechazar correo electrónico inválido mediante PUT
+PUT {{baseUrl}}/api/proveedores/1
+Content-Type: application/json
+
+{
+  "razonSocial": "Distribuidora de Herramientas Demo SRL",
+  "nombreFantasia": "Distribuidora Demo",
+  "cuit": null,
+  "email": "correo-invalido",
+  "telefono": "3515551111",
+  "direccion": "Córdoba, Argentina",
+  "contacto": "Departamento de Ventas"
+}
+
+### Paso 115.38 - Rechazar teléfono demasiado largo
+POST {{baseUrl}}/api/proveedores
+Content-Type: application/json
+
+{
+  "razonSocial": "Proveedor de prueba Telefono Largo",
+  "nombreFantasia": "Prueba Telefono",
+  "cuit": null,
+  "email": "prueba@example.com",
+  "telefono": "1234567890123456789012345678901",
+  "direccion": "Cordoba, Argentina",
+  "contacto": "Contacto de prueba"
+}
+
+### Paso 115.40 - Desactivar proveedor
+PATCH {{baseUrl}}/api/proveedores/1/desactivar
+
+### Paso 115.42 - Impedir modificar proveedor desactivado
+PUT {{baseUrl}}/api/proveedores/1
+Content-Type: application/json
+
+{
+  "razonSocial": "Distribuidora Modificada",
+  "nombreFantasia": "Distribuidora Demo",
+  "cuit": null,
+  "email": "contacto@example.com",
+  "telefono": "3515551111",
+  "direccion": "Córdoba, Argentina",
+  "contacto": "Departamento de Ventas"
+}
+
+### Paso 115.44 - Reactivar proveedor
+PATCH {{baseUrl}}/api/proveedores/1/activar
+
+### Paso 115.46 - Impedir activar un proveedor ya activo
+PATCH {{baseUrl}}/api/proveedores/1/activar
+
+### Paso 115.47 - Desactivar proveedor
+PATCH {{baseUrl}}/api/proveedores/1/desactivar
+
+### Paso 115.47 - Intentar desactivarlo nuevamente
+PATCH {{baseUrl}}/api/proveedores/1/desactivar
+
+### Paso 115.47.1 - Verificar proveedor
+GET {{baseUrl}}/api/proveedores/1
+
+### Paso 115.47.2 - Comprobar desactivación
+PATCH {{baseUrl}}/api/proveedores/1/desactivar
+
+### Paso 115.47.3 - Impedir desactivar dos veces
+PATCH {{baseUrl}}/api/proveedores/1/desactivar
+
+### Paso 115.48 - Reactivar proveedor
+PATCH {{baseUrl}}/api/proveedores/1/activar
+
+### Paso 115.51 - Consultar todos los proveedores
+GET {{baseUrl}}/api/proveedores
+
+###
+
+### Paso 115.51 - Consultar proveedores activos
+GET {{baseUrl}}/api/proveedores?activo=true
+
+###
+
+### Paso 115.51 - Consultar proveedores inactivos
+GET {{baseUrl}}/api/proveedores?activo=false
+
+### Paso 115.51.1 - Verificar proveedores inactivos
+GET {{baseUrl}}/api/proveedores?activo=false
+
+### Paso 115.52 - Desactivar proveedor de prueba
+PATCH {{baseUrl}}/api/proveedores/1/desactivar
+
+###
+
+### Paso 115.52 - Consultar proveedores inactivos
+GET {{baseUrl}}/api/proveedores?activo=false
+
+### Paso 115.53 - Reactivar proveedor de prueba
+PATCH {{baseUrl}}/api/proveedores/1/activar
+
+### Paso 115.56 - Actualizar teléfono del proveedor
+PATCH {{baseUrl}}/api/proveedores/1
+Content-Type: application/json
+
+{
+  "telefono": "3515559999"
+}
+
+### Paso 115.58 - Rechazar PATCH sin campos
+PATCH {{baseUrl}}/api/proveedores/1
+Content-Type: application/json
+
+
+### Paso 115.59 - Rechazar CUIT inválido mediante PATCH
+PATCH {{baseUrl}}/api/proveedores/1
+Content-Type: application/json
+
+{
+  "cuit": "20123456780"
+}
+
+### Paso 115.60 - Rechazar CUIT duplicado mediante PATCH
+PATCH {{baseUrl}}/api/proveedores/1
+Content-Type: application/json
+
+{
+  "cuit": "20123456786"
+}
+
+### Paso 115.61 - Rechazar email inválido mediante PATCH
+PATCH {{baseUrl}}/api/proveedores/1
+Content-Type: application/json
+
+{
+  "email": "correo-invalido"
+}
+
+### Paso 115.62 - Actualizar varios campos del proveedor
+PATCH {{baseUrl}}/api/proveedores/1
+Content-Type: application/json
+
+{
+  "nombreFantasia": "Distribuidora Demo Ferretería",
+  "telefono": "3515558888",
+  "contacto": "Departamento Comercial"
+}
+
+### Paso 115.64 - Rechazar PATCH de proveedor inexistente
+PATCH {{baseUrl}}/api/proveedores/999999
+Content-Type: application/json
+
+{
+  "telefono": "3515559999"
+}
+
+### Paso 115.65 - Desactivar proveedor de prueba
+PATCH {{baseUrl}}/api/proveedores/1/desactivar
+
+###
+
+### Paso 115.65 - Intentar modificar proveedor inactivo
+PATCH {{baseUrl}}/api/proveedores/1
+Content-Type: application/json
+
+{
+  "telefono": "3515557777"
+}
+
+### Paso 115.66 - Reactivar proveedor de prueba
+PATCH {{baseUrl}}/api/proveedores/1/activar
+
+### Paso 115.68 - Buscar proveedores por nombre
+GET {{baseUrl}}/api/proveedores?buscar=Demo
+Accept: application/json
+
+### Paso 115.69 - Buscar proveedores por CUIT
+GET {{baseUrl}}/api/proveedores?buscar=20123456786
+Accept: application/json
+
+### Paso 115.70 - Buscar proveedores activos por nombre
+GET {{baseUrl}}/api/proveedores?activo=true&buscar=Demo
+Accept: application/json
+
+### Paso 115.71 - Buscar proveedor sin coincidencias
+GET {{baseUrl}}/api/proveedores?buscar=ProveedorInexistenteXYZ999
+Accept: application/json
+
+### Paso 116.9 - Vincular producto con proveedor
+POST {{baseUrl}}/api/proveedores/vincular-producto
+Content-Type: application/json
+
+{
+  "productoId": 9,
+  "proveedorId": 1
+}
+
+### Paso 116.11 - Rechazar vinculación duplicada
+POST {{baseUrl}}/api/proveedores/vincular-producto
+Content-Type: application/json
+
+{
+  "productoId": 9,
+  "proveedorId": 1
+}
+
+### Paso 116.13 - Consultar proveedores de un producto
+GET {{baseUrl}}/api/proveedores/producto/9
+Accept: application/json
+
+### Paso 116.15 - Consultar productos de un proveedor
+GET {{baseUrl}}/api/proveedores/1/productos
+Accept: application/json
+
+### Paso 116.17 - Desvincular producto de proveedor
+DELETE {{baseUrl}}/api/proveedores/1/productos/9
+Accept: application/json
+
+### Paso 116.19 - Restaurar vinculación producto-proveedor
+POST {{baseUrl}}/api/proveedores/vincular-producto
+Content-Type: application/json
+
+{
+  "productoId": 9,
+  "proveedorId": 1
+}
+
+### Paso 117.10 - Registrar primera compra
+POST {{baseUrl}}/api/compras
+Content-Type: application/json
+
+{
+  "proveedorId": 1,
+  "numeroComprobante": "FACT-A-0001-00001234"
+}
+
+### Paso 117.14 - Agregar producto a una compra
+POST {{baseUrl}}/api/compras/1/detalles
+Content-Type: application/json
+
+{
+  "productoId": 9,
+  "cantidad": 2,
+  "precioUnitario": 80000.00
+}
+
+### Paso 117.16 - Consultar compra con sus detalles
+GET {{baseUrl}}/api/compras/1
+Accept: application/json
+
+### Paso 117.18 - Listar todas las compras
+GET {{baseUrl}}/api/compras
+Accept: application/json
+
+
+### Paso 117.20 - Consultar stock antes de confirmar
+GET {{baseUrl}}/api/productos/9
+Accept: application/json
+
+###
+
+### Paso 117.20 - Confirmar compra
+PATCH {{baseUrl}}/api/compras/1/confirmar
+Accept: application/json
+
+###
+
+### Paso 117.20 - Consultar stock después de confirmar
+GET {{baseUrl}}/api/productos/9
+Accept: application/json
+
+### Consultar historial de movimientos
+GET {{baseUrl}}/api/MovimientosStock
+Accept: application/json
+
+### Paso 117.21 - Impedir confirmar una compra duplicada
+PATCH {{baseUrl}}/api/compras/1/confirmar
+Accept: application/json
+
+### Paso 117.24 - Crear compra para probar anulacion
+POST {{baseUrl}}/api/compras
+Content-Type: application/json
+
+{
+  "proveedorId": 1,
+  "numeroComprobante": "PRUEBA-ANULACION-001"
+}
+
+### Paso 117.24 - Anular compra en borrador
+PATCH {{baseUrl}}/api/compras/2/anular
+Accept: application/json
+
+### Paso 117.25 - Rechazar confirmacion de compra anulada
+PATCH {{baseUrl}}/api/compras/2/confirmar
+Accept: application/json
+
+### Paso 117.28 - Crear compra de prueba
+POST {{baseUrl}}/api/compras
+Content-Type: application/json
+
+{
+  "proveedorId": 1,
+  "numeroComprobante": "PRUEBA-MODIFICACION-001"
+}
+
+### Paso 117.28 - Agregar producto a compra 3
+POST {{baseUrl}}/api/compras/3/detalles
+Content-Type: application/json
+
+{
+  "productoId": 9,
+  "cantidad": 3,
+  "precioUnitario": 80000.00
+}
+
+### Paso 117.28 - Modificar detalle de compra
+PUT {{baseUrl}}/api/compras/3/detalles/2
+Content-Type: application/json
+
+{
+  "cantidad": 5,
+  "precioUnitario": 85000.00
+}
+
+### Paso 117.29 - Eliminar detalle de compra
+DELETE {{baseUrl}}/api/compras/3/detalles/2
+Accept: application/json
+
+
+
+
+
+
+
+
+
+
 
 
 
