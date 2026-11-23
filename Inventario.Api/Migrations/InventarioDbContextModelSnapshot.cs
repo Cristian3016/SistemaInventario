@@ -168,6 +168,42 @@ namespace Inventario.Api.Migrations
                     b.ToTable("DetallesCompra");
                 });
 
+            modelBuilder.Entity("Inventario.Api.Models.DetalleVenta", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("Cantidad")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<decimal>("PrecioUnitario")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("ProductoId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("Subtotal")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("VentaId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductoId");
+
+                    b.HasIndex("VentaId", "ProductoId")
+                        .IsUnique();
+
+                    b.ToTable("DetallesVenta");
+                });
+
             modelBuilder.Entity("Inventario.Api.Models.Marca", b =>
                 {
                     b.Property<int>("Id")
@@ -388,6 +424,40 @@ namespace Inventario.Api.Migrations
                     b.ToTable("UnidadesMedida");
                 });
 
+            modelBuilder.Entity("Inventario.Api.Models.Venta", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("ClienteId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime>("FechaVenta")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("NumeroComprobante")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<decimal>("Total")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClienteId");
+
+                    b.ToTable("Ventas");
+                });
+
             modelBuilder.Entity("Inventario.Api.Models.Categoria", b =>
                 {
                     b.HasOne("Inventario.Api.Models.Categoria", "CategoriaPadre")
@@ -426,6 +496,25 @@ namespace Inventario.Api.Migrations
                     b.Navigation("Compra");
 
                     b.Navigation("Producto");
+                });
+
+            modelBuilder.Entity("Inventario.Api.Models.DetalleVenta", b =>
+                {
+                    b.HasOne("Inventario.Api.Models.Producto", "Producto")
+                        .WithMany()
+                        .HasForeignKey("ProductoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Inventario.Api.Models.Venta", "Venta")
+                        .WithMany()
+                        .HasForeignKey("VentaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Producto");
+
+                    b.Navigation("Venta");
                 });
 
             modelBuilder.Entity("Inventario.Api.Models.MovimientoStock", b =>
@@ -480,6 +569,16 @@ namespace Inventario.Api.Migrations
                     b.Navigation("Producto");
 
                     b.Navigation("Proveedor");
+                });
+
+            modelBuilder.Entity("Inventario.Api.Models.Venta", b =>
+                {
+                    b.HasOne("Inventario.Api.Models.Cliente", "Cliente")
+                        .WithMany()
+                        .HasForeignKey("ClienteId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Cliente");
                 });
 
             modelBuilder.Entity("Inventario.Api.Models.Categoria", b =>

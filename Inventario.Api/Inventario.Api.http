@@ -1245,6 +1245,141 @@ Content-Type: application/json
   "direccion": "Córdoba, Argentina"
 }
 
+### Venta a cliente registrado
+POST {{baseUrl}}/api/ventas
+Content-Type: application/json
+
+{
+  "clienteId": 1,
+  "numeroComprobante": "TICKET-0001"
+}
+
+###
+
+### Venta a consumidor final
+POST {{baseUrl}}/api/ventas
+Content-Type: application/json
+
+{
+  "clienteId": null,
+  "numeroComprobante": "TICKET-0002"
+}
+
+### Paso 119.12 - Agregar producto a una venta
+POST {{baseUrl}}/api/ventas/1/detalles
+Content-Type: application/json
+
+{
+  "productoId": 9,
+  "cantidad": 1,
+  "precioUnitario": 95000.00
+}
+
+### Paso 119.14 - Consultar venta con sus detalles
+GET {{baseUrl}}/api/ventas/1
+Accept: application/json
+
+### Paso 119.16 - Listar todas las ventas
+GET {{baseUrl}}/api/ventas
+Accept: application/json
+
+###
+
+### Filtrar ventas en borrador
+GET {{baseUrl}}/api/ventas?estado=Borrador
+Accept: application/json
+
+###
+
+### Filtrar ventas por cliente
+GET {{baseUrl}}/api/ventas?clienteId=1
+Accept: application/json
+
+###
+
+### Combinar cliente y estado
+GET {{baseUrl}}/api/ventas?clienteId=1&estado=Borrador
+Accept: application/json
+
+###
+
+### Filtrar ventas confirmadas
+GET {{baseUrl}}/api/ventas?estado=Confirmada
+Accept: application/json
+
+### Paso 119.18 - Consultar stock antes de vender
+GET {{baseUrl}}/api/productos/9
+Accept: application/json
+
+###
+
+### Paso 119.18 - Confirmar venta
+PATCH {{baseUrl}}/api/ventas/1/confirmar
+Accept: application/json
+
+###
+
+### Paso 119.18 - Consultar stock despues de vender
+GET {{baseUrl}}/api/productos/9
+Accept: application/json
+
+### Paso 119.19 - Evitar confirmacion duplicada
+PATCH {{baseUrl}}/api/ventas/1/confirmar
+Accept: application/json
+
+### Paso 119.21 - Anular venta de consumidor final
+PATCH {{baseUrl}}/api/ventas/2/anular
+Accept: application/json
+
+###
+
+### Consultar venta anulada
+GET {{baseUrl}}/api/ventas/2
+Accept: application/json
+
+### Paso 119.23 - Crear venta de prueba
+POST {{baseUrl}}/api/ventas
+Content-Type: application/json
+
+{
+  "clienteId": 1,
+  "numeroComprobante": "PRUEBA-ELIMINACION-001"
+}
+
+### Paso 119.23 - Agregar producto
+POST {{baseUrl}}/api/ventas/3/detalles
+Content-Type: application/json
+
+{
+  "productoId": 9,
+  "cantidad": 1,
+  "precioUnitario": 95000.00
+}
+
+### Paso 119.23 - Eliminar detalle
+DELETE {{baseUrl}}/api/ventas/3/detalles/2
+Accept: application/json
+
+### Paso 119.26 - Agregar producto a venta
+POST {{baseUrl}}/api/ventas/3/detalles
+Content-Type: application/json
+
+{
+  "productoId": 9,
+  "cantidad": 1,
+  "precioUnitario": 95000.00
+}
+
+### Paso 119.26 - Modificar detalle de venta
+PUT {{baseUrl}}/api/ventas/3/detalles/3
+Content-Type: application/json
+
+{
+  "cantidad": 2,
+  "precioUnitario": 98000.00
+}
+
+
 
 
 

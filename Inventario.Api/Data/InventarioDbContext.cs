@@ -31,7 +31,9 @@ namespace Inventario.Api.Data
 
         public DbSet<Cliente> Clientes { get; set; }
 
+        public DbSet<Venta> Ventas { get; set; }
 
+        public DbSet<DetalleVenta> DetallesVenta { get; set; }
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -227,6 +229,54 @@ namespace Inventario.Api.Data
                     .IsUnique()
                     .HasFilter("[TipoDocumento] IS NOT NULL AND [NumeroDocumento] IS NOT NULL");
                 });
+
+                modelBuilder.Entity<Venta>(entity =>
+                {
+                    entity.HasKey(v => v.Id);
+
+                    entity.Property(v => v.NumeroComprobante)
+                        .HasMaxLength(100);
+
+                    entity.Property(v => v.Estado)
+                        .IsRequired()
+                        .HasMaxLength(20);
+
+                    entity.Property(v => v.Total)
+                        .HasPrecision(18, 2);
+
+                    entity.HasOne(v => v.Cliente)
+                        .WithMany()
+                        .HasForeignKey(v => v.ClienteId)
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+                modelBuilder.Entity<DetalleVenta>(entity =>
+                {
+                    entity.HasKey(d => d.Id);
+
+                    entity.Property(d => d.Cantidad)
+                        .HasPrecision(18, 3);
+
+                    entity.Property(d => d.PrecioUnitario)
+                        .HasPrecision(18, 2);
+
+                    entity.Property(d => d.Subtotal)
+                        .HasPrecision(18, 2);
+
+                    entity.HasOne(d => d.Venta)
+                        .WithMany()
+                        .HasForeignKey(d => d.VentaId)
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    entity.HasOne(d => d.Producto)
+                        .WithMany()
+                        .HasForeignKey(d => d.ProductoId)
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    entity.HasIndex(d => new { d.VentaId, d.ProductoId })
+                        .IsUnique();
+                });
+
 
             });
 
