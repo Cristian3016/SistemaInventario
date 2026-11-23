@@ -1136,6 +1136,115 @@ Content-Type: application/json
 DELETE {{baseUrl}}/api/compras/3/detalles/2
 Accept: application/json
 
+### Paso 117.31 - Listar compras confirmadas
+GET {{baseUrl}}/api/compras?estado=Confirmada
+Accept: application/json
+
+###
+
+### Listar compras anuladas
+GET {{baseUrl}}/api/compras?estado=Anulada
+Accept: application/json
+
+###
+
+### Listar compras en borrador
+GET {{baseUrl}}/api/compras?estado=Borrador
+Accept: application/json
+
+###
+
+### Filtrar compras por proveedor y estado
+GET {{baseUrl}}/api/compras?proveedorId=1&estado=Confirmada
+Accept: application/json
+
+### Paso 118.8 - Registrar primer cliente
+POST {{baseUrl}}/api/clientes
+Content-Type: application/json
+
+{
+  "nombreRazonSocial": "Juan Pérez",
+  "tipoDocumento": "DNI",
+  "numeroDocumento": "30123456",
+  "email": "juan@example.com",
+  "telefono": "3515551234",
+  "direccion": "Córdoba, Argentina"
+}
+
+### Paso 118.10 - Listar todos los clientes
+GET {{baseUrl}}/api/clientes
+Accept: application/json
+
+###
+
+### Buscar cliente por nombre
+GET {{baseUrl}}/api/clientes?buscar=Juan
+Accept: application/json
+
+###
+
+### Buscar cliente por DNI
+GET {{baseUrl}}/api/clientes?buscar=30123456
+Accept: application/json
+
+###
+
+### Filtrar clientes activos
+GET {{baseUrl}}/api/clientes?activo=true
+Accept: application/json
+
+###
+
+### Combinar búsqueda y estado
+GET {{baseUrl}}/api/clientes?activo=true&buscar=Juan
+Accept: application/json
+
+### Paso 118.12 - Consultar cliente por ID
+GET {{baseUrl}}/api/clientes/1
+Accept: application/json
+
+### Paso 118.14 - Actualizar cliente
+PUT {{baseUrl}}/api/clientes/1
+Content-Type: application/json
+
+{
+  "nombreRazonSocial": "Juan Pérez",
+  "tipoDocumento": "DNI",
+  "numeroDocumento": "30123456",
+  "email": "juan.perez@example.com",
+  "telefono": "3515559999",
+  "direccion": "Córdoba Capital, Argentina"
+}
+
+### Paso 118.17 - Desactivar cliente
+PATCH {{baseUrl}}/api/clientes/1/desactivar
+Accept: application/json
+
+###
+
+### Paso 118.17 - Reactivar cliente
+PATCH {{baseUrl}}/api/clientes/1/activar
+Accept: application/json
+
+###
+
+### Paso 118.17 - Consultar estado final del cliente
+GET {{baseUrl}}/api/clientes/1
+Accept: application/json
+
+### Paso 118.18 - Rechazar DNI duplicado
+POST {{baseUrl}}/api/clientes
+Content-Type: application/json
+
+{
+  "nombreRazonSocial": "Pedro González",
+  "tipoDocumento": "DNI",
+  "numeroDocumento": "30123456",
+  "email": "pedro@example.com",
+  "telefono": "3515557777",
+  "direccion": "Córdoba, Argentina"
+}
+
 
 
 

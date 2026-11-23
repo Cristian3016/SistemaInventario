@@ -29,6 +29,9 @@ namespace Inventario.Api.Data
 
         public DbSet<DetalleCompra> DetallesCompra { get; set; }
 
+        public DbSet<Cliente> Clientes { get; set; }
+
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -189,6 +192,42 @@ namespace Inventario.Api.Data
 
                 entity.HasIndex(d => new { d.CompraId, d.ProductoId })
                     .IsUnique();
+
+                modelBuilder.Entity<Cliente>(entity =>
+                {
+                    entity.HasKey(c => c.Id);
+
+                    entity.Property(c => c.NombreRazonSocial)
+                        .IsRequired()
+                        .HasMaxLength(200);
+
+                    entity.Property(c => c.TipoDocumento)
+                        .HasMaxLength(10);
+
+                    entity.Property(c => c.NumeroDocumento)
+                        .HasMaxLength(20);
+
+                    entity.Property(c => c.Email)
+                        .HasMaxLength(254);
+
+                    entity.Property(c => c.Telefono)
+                        .HasMaxLength(30);
+
+                    entity.Property(c => c.Direccion)
+                        .HasMaxLength(250);
+
+                    entity.Property(c => c.Activo)
+                        .HasDefaultValue(true);
+
+                    entity.HasIndex(c => new
+                    {
+                        c.TipoDocumento,
+                        c.NumeroDocumento
+                    })
+                    .IsUnique()
+                    .HasFilter("[TipoDocumento] IS NOT NULL AND [NumeroDocumento] IS NOT NULL");
+                });
+
             });
 
         }
