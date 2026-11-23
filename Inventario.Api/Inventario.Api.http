@@ -1379,6 +1379,228 @@ Content-Type: application/json
   "precioUnitario": 98000.00
 }
 
+### Paso 119.27 - Rechazar venta sin stock suficiente
+PATCH {{baseUrl}}/api/ventas/3/confirmar
+Accept: application/json
+
+### Paso 119.28 - Corregir cantidad de venta
+PUT {{baseUrl}}/api/ventas/3/detalles/3
+Content-Type: application/json
+
+{
+  "cantidad": 1,
+  "precioUnitario": 98000.00
+}
+
+### Paso 119.28 - Confirmar venta corregida
+PATCH {{baseUrl}}/api/ventas/3/confirmar
+Accept: application/json
+
+### Paso 119.29 - Consultar stock del taladro
+GET {{baseUrl}}/api/productos/9
+Accept: application/json
+
+###
+
+### Paso 119.29 - Consultar movimientos de stock
+GET {{baseUrl}}/api/MovimientosStock
+Accept: application/json
+
+### Paso 120.9 - Consultar todos los métodos de pago
+GET {{baseUrl}}/api/metodospago
+Accept: application/json
+
+###
+
+### Consultar métodos de pago activos
+GET {{baseUrl}}/api/metodospago?activo=true
+Accept: application/json
+
+###
+
+### Consultar métodos de pago inactivos
+GET {{baseUrl}}/api/metodospago?activo=false
+Accept: application/json
+
+###
+
+### Consultar método de pago por ID
+GET {{baseUrl}}/api/metodospago/1
+Accept: application/json
+
+### Paso 120.12 - Abrir caja
+POST {{baseUrl}}/api/cajas/abrir
+Content-Type: application/json
+
+{
+  "montoInicial": 50000.00,
+  "observaciones": "Apertura de caja de prueba"
+}
+
+###
+
+### Intentar abrir una segunda caja
+POST {{baseUrl}}/api/cajas/abrir
+Content-Type: application/json
+
+{
+  "montoInicial": 20000.00,
+  "observaciones": "Segunda apertura de prueba"
+}
+
+### Paso 120.14 - Consultar caja abierta
+GET {{baseUrl}}/api/cajas/abierta
+Accept: application/json
+
+###
+
+### Consultar historial de cajas
+GET {{baseUrl}}/api/cajas
+Accept: application/json
+
+###
+
+### Consultar cajas abiertas
+GET {{baseUrl}}/api/cajas?estado=abierta
+Accept: application/json
+
+###
+
+### Consultar cajas cerradas
+GET {{baseUrl}}/api/cajas?estado=cerrada
+Accept: application/json
+
+###
+
+### Consultar caja por ID
+GET {{ba  seUrl}}/api/cajas/1
+Accept: application/json
+
+### Paso 120.17 - Registrar pago en efectivo
+POST {{baseUrl}}/api/ventas/1/pagos
+Content-Type: application/json
+
+{
+  "metodoPagoId": 1,
+  "monto": 40000.00,
+  "referenciaOperacion": null
+}
+
+###
+
+### Intentar cobrar más del saldo pendiente
+POST {{baseUrl}}/api/ventas/1/pagos
+Content-Type: application/json
+
+{
+  "metodoPagoId": 2,
+  "monto": 60000.00,
+  "referenciaOperacion": "POSNET-PRUEBA-001"
+}
+
+###
+
+### Completar el pago con tarjeta de débito
+POST {{baseUrl}}/api/ventas/1/pagos
+Content-Type: application/json
+
+{
+  "metodoPagoId": 2,
+  "monto": 55000.00,
+  "referenciaOperacion": "POSNET-PRUEBA-002"
+}
+
+###
+
+### Intentar cobrar una venta totalmente abonada
+POST {{baseUrl}}/api/ventas/1/pagos
+Content-Type: application/json
+
+{
+  "metodoPagoId": 1,
+  "monto": 1000.00
+}
+
+### Paso 120.19 - Consultar venta totalmente abonada
+GET {{baseUrl}}/api/ventas/1/pagos
+Accept: application/json
+
+###
+
+### Consultar pagos de una venta anulada
+GET {{baseUrl}}/api/ventas/2/pagos
+Accept: application/json
+
+###
+
+### Consultar venta pendiente de pago
+GET {{baseUrl}}/api/ventas/3/pagos
+Accept: application/json
+
+### Paso 120.22 - Registrar ingreso de efectivo
+POST {{baseUrl}}/api/cajas/1/movimientos
+Content-Type: application/json
+
+{
+  "tipo": 1,
+  "monto": 10000.00,
+  "concepto": "Ingreso de cambio",
+  "observacion": "Billetes para entregar vuelto"
+}
+
+###
+
+### Registrar egreso de efectivo
+POST {{baseUrl}}/api/cajas/1/movimientos
+Content-Type: application/json
+
+{
+  "tipo": 2,
+  "monto": 5000.00,
+  "concepto": "Gastos de mantenimiento",
+  "observacion": "Compra de artículos de limpieza"
+}
+
+###
+
+### Intentar retirar más efectivo del disponible
+POST {{baseUrl}}/api/cajas/1/movimientos
+Content-Type: application/json
+
+{
+  "tipo": 2,
+  "monto": 100000.00,
+  "concepto": "Retiro de efectivo",
+  "observacion": "Prueba de saldo insuficiente"
+}
+
+### Paso 120.24 - Consultar todos los movimientos
+GET {{baseUrl}}/api/cajas/1/movimientos
+Accept: application/json
+
+###
+
+### Consultar ingresos de efectivo
+GET {{baseUrl}}/api/cajas/1/movimientos?tipo=1
+Accept: application/json
+
+###
+
+### Consultar egresos de efectivo
+GET {{baseUrl}}/api/cajas/1/movimientos?tipo=2
+Accept: application/json
+
+###
+
+### Consultar tipo de movimiento inválido
+GET {{baseUrl}}/api/cajas/1/movimientos?tipo=3
+Accept: application/json
+
+### Paso 120.26 - Consultar resumen general de caja
+GET {{baseUrl}}/api/cajas/1/resumen
+Accept: application/json
+
+
 
 
 

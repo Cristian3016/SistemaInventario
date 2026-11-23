@@ -24,16 +24,15 @@ namespace Inventario.Api.Data
         public DbSet<Proveedor> Proveedores { get; set; }
 
         public DbSet<ProductoProveedor> ProductoProveedores { get; set; }
-
         public DbSet<Compra> Compras { get; set; }
-
         public DbSet<DetalleCompra> DetallesCompra { get; set; }
-
         public DbSet<Cliente> Clientes { get; set; }
-
         public DbSet<Venta> Ventas { get; set; }
-
         public DbSet<DetalleVenta> DetallesVenta { get; set; }
+        public DbSet<MetodoPago> MetodosPago { get; set; }
+        public DbSet<Caja> Cajas { get; set; }
+        public DbSet<PagoVenta> PagosVenta { get; set; }
+        public DbSet<MovimientoCaja> MovimientosCaja { get; set; }
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -277,9 +276,88 @@ namespace Inventario.Api.Data
                         .IsUnique();
                 });
 
+                modelBuilder.Entity<MetodoPago>(entity =>
+                {
+                    entity.Property(m => m.Nombre)
+                        .IsRequired()
+                        .HasMaxLength(100);
+
+                    entity.Property(m => m.Descripcion)
+                        .HasMaxLength(250);
+
+                    entity.HasIndex(m => m.Nombre)
+                        .IsUnique();
+                });
+
+                modelBuilder.Entity<Caja>(entity =>
+                {
+                    entity.Property(c => c.MontoInicial)
+                        .HasPrecision(18, 2);
+
+                    entity.Property(c => c.MontoEsperado)
+                        .HasPrecision(18, 2);
+
+                    entity.Property(c => c.MontoReal)
+                        .HasPrecision(18, 2);
+
+                    entity.Property(c => c.Diferencia)
+                        .HasPrecision(18, 2);
+
+                    entity.Property(c => c.Estado)
+                        .IsRequired()
+                        .HasMaxLength(20);
+
+                    entity.Property(c => c.Observaciones)
+                        .HasMaxLength(500);
+
+                    entity.HasIndex(c => c.Estado)
+                        .IsUnique()
+                        .HasFilter("[Estado] = N'Abierta'");
+                });
+
+                modelBuilder.Entity<PagoVenta>(entity =>
+                {
+                    entity.Property(p => p.Monto)
+                        .HasPrecision(18, 2);
+
+                    entity.Property(p => p.ReferenciaOperacion)
+                        .HasMaxLength(150);
+
+                    entity.HasOne(p => p.Venta)
+                        .WithMany()
+                        .HasForeignKey(p => p.VentaId)
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    entity.HasOne(p => p.MetodoPago)
+                        .WithMany()
+                        .HasForeignKey(p => p.MetodoPagoId)
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    entity.HasOne(p => p.Caja)
+                        .WithMany()
+                        .HasForeignKey(p => p.CajaId)
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+                modelBuilder.Entity<MovimientoCaja>(entity =>
+                {
+                    entity.Property(m => m.Monto)
+                        .HasPrecision(18, 2);
+
+                    entity.Property(m => m.Concepto)
+                        .IsRequired()
+                        .HasMaxLength(200);
+
+                    entity.Property(m => m.Observacion)
+                        .HasMaxLength(500);
+
+                    entity.HasOne(m => m.Caja)
+                        .WithMany()
+                        .HasForeignKey(m => m.CajaId)
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
 
             });
-
         }
     }
 }
