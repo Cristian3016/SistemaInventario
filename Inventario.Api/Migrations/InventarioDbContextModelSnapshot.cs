@@ -415,6 +415,218 @@ namespace Inventario.Api.Migrations
                     b.ToTable("PagosVenta");
                 });
 
+            modelBuilder.Entity("Inventario.Api.Models.Permiso", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("Activo")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("Codigo")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Descripcion")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<DateTime>("FechaCreacion")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Codigo")
+                        .IsUnique();
+
+                    b.ToTable("Permisos");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Activo = true,
+                            Codigo = "PRODUCTOS_VER",
+                            Descripcion = "Permite consultar los productos del sistema.",
+                            FechaCreacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Nombre = "Consultar productos"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Activo = true,
+                            Codigo = "PRODUCTOS_GESTIONAR",
+                            Descripcion = "Permite crear, actualizar y cambiar el estado de productos.",
+                            FechaCreacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Nombre = "Gestionar productos"
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Activo = true,
+                            Codigo = "CATEGORIAS_GESTIONAR",
+                            Descripcion = "Permite gestionar categorias y subcategorias.",
+                            FechaCreacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Nombre = "Gestionar categorias"
+                        },
+                        new
+                        {
+                            Id = 4,
+                            Activo = true,
+                            Codigo = "UNIDADES_GESTIONAR",
+                            Descripcion = "Permite gestionar las unidades de medida.",
+                            FechaCreacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Nombre = "Gestionar unidades de medida"
+                        },
+                        new
+                        {
+                            Id = 5,
+                            Activo = true,
+                            Codigo = "MARCAS_GESTIONAR",
+                            Descripcion = "Permite gestionar las marcas de los productos.",
+                            FechaCreacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Nombre = "Gestionar marcas"
+                        },
+                        new
+                        {
+                            Id = 6,
+                            Activo = true,
+                            Codigo = "PROVEEDORES_GESTIONAR",
+                            Descripcion = "Permite gestionar proveedores y sus productos asociados.",
+                            FechaCreacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Nombre = "Gestionar proveedores"
+                        },
+                        new
+                        {
+                            Id = 7,
+                            Activo = true,
+                            Codigo = "STOCK_GESTIONAR",
+                            Descripcion = "Permite gestionar el stock y sus movimientos.",
+                            FechaCreacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Nombre = "Gestionar stock"
+                        },
+                        new
+                        {
+                            Id = 8,
+                            Activo = true,
+                            Codigo = "COMPRAS_GESTIONAR",
+                            Descripcion = "Permite registrar y gestionar compras.",
+                            FechaCreacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Nombre = "Gestionar compras"
+                        },
+                        new
+                        {
+                            Id = 9,
+                            Activo = true,
+                            Codigo = "CLIENTES_GESTIONAR",
+                            Descripcion = "Permite gestionar los clientes del sistema.",
+                            FechaCreacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Nombre = "Gestionar clientes"
+                        },
+                        new
+                        {
+                            Id = 10,
+                            Activo = true,
+                            Codigo = "VENTAS_GESTIONAR",
+                            Descripcion = "Permite registrar y gestionar ventas.",
+                            FechaCreacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Nombre = "Gestionar ventas"
+                        },
+                        new
+                        {
+                            Id = 11,
+                            Activo = true,
+                            Codigo = "CAJA_GESTIONAR",
+                            Descripcion = "Permite abrir, cerrar y gestionar movimientos de caja.",
+                            FechaCreacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Nombre = "Gestionar caja"
+                        },
+                        new
+                        {
+                            Id = 12,
+                            Activo = true,
+                            Codigo = "COBROS_REGISTRAR",
+                            Descripcion = "Permite registrar pagos asociados a ventas.",
+                            FechaCreacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Nombre = "Registrar cobros"
+                        },
+                        new
+                        {
+                            Id = 13,
+                            Activo = true,
+                            Codigo = "METODOS_PAGO_GESTIONAR",
+                            Descripcion = "Permite administrar los metodos de pago disponibles.",
+                            FechaCreacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Nombre = "Gestionar metodos de pago"
+                        },
+                        new
+                        {
+                            Id = 14,
+                            Activo = true,
+                            Codigo = "REPORTES_VER",
+                            Descripcion = "Permite consultar los reportes generales del sistema.",
+                            FechaCreacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Nombre = "Consultar reportes"
+                        },
+                        new
+                        {
+                            Id = 15,
+                            Activo = true,
+                            Codigo = "USUARIOS_GESTIONAR",
+                            Descripcion = "Permite administrar los usuarios del sistema.",
+                            FechaCreacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Nombre = "Gestionar usuarios"
+                        },
+                        new
+                        {
+                            Id = 16,
+                            Activo = true,
+                            Codigo = "ROLES_GESTIONAR",
+                            Descripcion = "Permite administrar roles y asignaciones de usuarios.",
+                            FechaCreacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Nombre = "Gestionar roles"
+                        },
+                        new
+                        {
+                            Id = 17,
+                            Activo = true,
+                            Codigo = "PERMISOS_GESTIONAR",
+                            Descripcion = "Permite administrar las asignaciones de permisos a roles.",
+                            FechaCreacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Nombre = "Gestionar permisos"
+                        },
+                        new
+                        {
+                            Id = 18,
+                            Activo = true,
+                            Codigo = "AUDITORIA_VER",
+                            Descripcion = "Permite consultar el historial de operaciones del sistema.",
+                            FechaCreacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Nombre = "Consultar auditoria"
+                        },
+                        new
+                        {
+                            Id = 19,
+                            Activo = true,
+                            Codigo = "VENTAS_VER",
+                            Descripcion = "Permite consultar ventas sin modificarlas.",
+                            FechaCreacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Nombre = "Consultar ventas"
+                        });
+                });
+
             modelBuilder.Entity("Inventario.Api.Models.Producto", b =>
                 {
                     b.Property<int>("Id")
@@ -558,6 +770,310 @@ namespace Inventario.Api.Migrations
                     b.ToTable("Proveedores");
                 });
 
+            modelBuilder.Entity("Inventario.Api.Models.Rol", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("Activo")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("Descripcion")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<DateTime>("FechaCreacion")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Nombre")
+                        .IsUnique();
+
+                    b.ToTable("Roles");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Activo = true,
+                            Descripcion = "Acceso completo a todas las funcionalidades del sistema.",
+                            FechaCreacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Nombre = "Administrador"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Activo = true,
+                            Descripcion = "Gestion de ventas y clientes.",
+                            FechaCreacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Nombre = "Vendedor"
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Activo = true,
+                            Descripcion = "Gestion de productos, stock, compras y proveedores.",
+                            FechaCreacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Nombre = "Encargado de deposito"
+                        },
+                        new
+                        {
+                            Id = 4,
+                            Activo = true,
+                            Descripcion = "Gestion de caja, cobros y pagos.",
+                            FechaCreacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Nombre = "Cajero"
+                        });
+                });
+
+            modelBuilder.Entity("Inventario.Api.Models.RolPermiso", b =>
+                {
+                    b.Property<int>("RolId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("PermisoId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("FechaAsignacion")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("RolId", "PermisoId");
+
+                    b.HasIndex("PermisoId");
+
+                    b.ToTable("RolesPermisos");
+
+                    b.HasData(
+                        new
+                        {
+                            RolId = 1,
+                            PermisoId = 1,
+                            FechaAsignacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            RolId = 1,
+                            PermisoId = 2,
+                            FechaAsignacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            RolId = 1,
+                            PermisoId = 3,
+                            FechaAsignacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            RolId = 1,
+                            PermisoId = 4,
+                            FechaAsignacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            RolId = 1,
+                            PermisoId = 5,
+                            FechaAsignacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            RolId = 1,
+                            PermisoId = 6,
+                            FechaAsignacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            RolId = 1,
+                            PermisoId = 7,
+                            FechaAsignacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            RolId = 1,
+                            PermisoId = 8,
+                            FechaAsignacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            RolId = 1,
+                            PermisoId = 9,
+                            FechaAsignacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            RolId = 1,
+                            PermisoId = 10,
+                            FechaAsignacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            RolId = 1,
+                            PermisoId = 11,
+                            FechaAsignacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            RolId = 1,
+                            PermisoId = 12,
+                            FechaAsignacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            RolId = 1,
+                            PermisoId = 13,
+                            FechaAsignacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            RolId = 1,
+                            PermisoId = 14,
+                            FechaAsignacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            RolId = 1,
+                            PermisoId = 15,
+                            FechaAsignacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            RolId = 1,
+                            PermisoId = 16,
+                            FechaAsignacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            RolId = 1,
+                            PermisoId = 17,
+                            FechaAsignacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            RolId = 1,
+                            PermisoId = 18,
+                            FechaAsignacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            RolId = 1,
+                            PermisoId = 19,
+                            FechaAsignacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            RolId = 2,
+                            PermisoId = 1,
+                            FechaAsignacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            RolId = 2,
+                            PermisoId = 9,
+                            FechaAsignacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            RolId = 2,
+                            PermisoId = 10,
+                            FechaAsignacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            RolId = 2,
+                            PermisoId = 19,
+                            FechaAsignacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            RolId = 3,
+                            PermisoId = 1,
+                            FechaAsignacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            RolId = 3,
+                            PermisoId = 2,
+                            FechaAsignacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            RolId = 3,
+                            PermisoId = 3,
+                            FechaAsignacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            RolId = 3,
+                            PermisoId = 4,
+                            FechaAsignacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            RolId = 3,
+                            PermisoId = 5,
+                            FechaAsignacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            RolId = 3,
+                            PermisoId = 6,
+                            FechaAsignacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            RolId = 3,
+                            PermisoId = 7,
+                            FechaAsignacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            RolId = 3,
+                            PermisoId = 8,
+                            FechaAsignacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            RolId = 4,
+                            PermisoId = 1,
+                            FechaAsignacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            RolId = 4,
+                            PermisoId = 9,
+                            FechaAsignacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            RolId = 4,
+                            PermisoId = 11,
+                            FechaAsignacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            RolId = 4,
+                            PermisoId = 12,
+                            FechaAsignacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            RolId = 4,
+                            PermisoId = 19,
+                            FechaAsignacion = new DateTime(2026, 11, 23, 0, 0, 0, 0, DateTimeKind.Utc)
+                        });
+                });
+
             modelBuilder.Entity("Inventario.Api.Models.UnidadMedida", b =>
                 {
                     b.Property<int>("Id")
@@ -635,6 +1151,24 @@ namespace Inventario.Api.Migrations
                         .IsUnique();
 
                     b.ToTable("Usuarios");
+                });
+
+            modelBuilder.Entity("Inventario.Api.Models.UsuarioRol", b =>
+                {
+                    b.Property<int>("UsuarioId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("RolId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("FechaAsignacion")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("UsuarioId", "RolId");
+
+                    b.HasIndex("RolId");
+
+                    b.ToTable("UsuariosRoles");
                 });
 
             modelBuilder.Entity("Inventario.Api.Models.Venta", b =>
@@ -820,6 +1354,44 @@ namespace Inventario.Api.Migrations
                     b.Navigation("Producto");
 
                     b.Navigation("Proveedor");
+                });
+
+            modelBuilder.Entity("Inventario.Api.Models.RolPermiso", b =>
+                {
+                    b.HasOne("Inventario.Api.Models.Permiso", "Permiso")
+                        .WithMany()
+                        .HasForeignKey("PermisoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Inventario.Api.Models.Rol", "Rol")
+                        .WithMany()
+                        .HasForeignKey("RolId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Permiso");
+
+                    b.Navigation("Rol");
+                });
+
+            modelBuilder.Entity("Inventario.Api.Models.UsuarioRol", b =>
+                {
+                    b.HasOne("Inventario.Api.Models.Rol", "Rol")
+                        .WithMany()
+                        .HasForeignKey("RolId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Inventario.Api.Models.Usuario", "Usuario")
+                        .WithMany()
+                        .HasForeignKey("UsuarioId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Rol");
+
+                    b.Navigation("Usuario");
                 });
 
             modelBuilder.Entity("Inventario.Api.Models.Venta", b =>

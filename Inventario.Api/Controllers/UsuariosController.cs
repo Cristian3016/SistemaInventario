@@ -330,6 +330,7 @@ namespace Inventario.Api.Controllers
             });
         }
 
+
         [HttpPatch("{id:int}/desactivar")]
         public async Task<IActionResult> DesactivarUsuario(int id)
         {
@@ -339,26 +340,75 @@ namespace Inventario.Api.Controllers
             if (id <= 0)
                 return BadRequest("El ID del usuario debe ser mayor que cero.");
 
-            var usuario = await _context.Usuarios.FindAsync(id);
+            await using var transaccion = await _context.Database
+                .BeginTransactionAsync(
+                    System.Data.IsolationLevel.Serializable);
 
-            if (usuario == null)
-                return NotFound("Usuario no encontrado.");
-
-            if (!usuario.Activo)
-                return Conflict("El usuario ya se encuentra desactivado.");
-
-            usuario.Activo = false;
-
-            await _context.SaveChangesAsync();
-
-            return Ok(new
+            try
             {
-                mensaje = "Usuario desactivado correctamente.",
-                usuario.Id,
-                usuario.NombreUsuario,
-                usuario.Activo
-            });
+                var usuario = await _context.Usuarios.FindAsync(id);
+
+                if (usuario == null)
+                    return NotFound("Usuario no encontrado.");
+
+                if (!usuario.Activo)
+                    return Conflict("El usuario ya se encuentra desactivado.");
+
+                var esAdministrador = await _context.UsuariosRoles
+                    .AnyAsync(ur =>
+                        ur.UsuarioId == id &&
+                        ur.RolId == 1 &&
+                        ur.Rol.Activo);
+
+                if (esAdministrador)
+                {
+                    var existeOtroAdministrador = await _context.UsuariosRoles
+                        .AnyAsync(ur =>
+                            ur.UsuarioId != id &&
+                            ur.RolId == 1 &&
+                            ur.Usuario.Activo &&
+                            ur.Rol.Activo);
+
+                    if (!existeOtroAdministrador)
+                    {
+                        return Conflict(
+                            "No se puede desactivar al ultimo administrador activo.");
+                    }
+                }
+
+                usuario.Activo = false;
+
+                await _context.SaveChangesAsync();
+
+                await transaccion.CommitAsync();
+
+                return Ok(new
+                {
+                    mensaje = "Usuario desactivado correctamente.",
+                    usuario.Id,
+                    usuario.NombreUsuario,
+                    usuario.Activo
+                });
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return Conflict(
+                    "El usuario fue modificado por otra operacion.");
+            }
+            catch (DbUpdateException ex) when (
+                ex.InnerException is SqlException sqlEx &&
+                sqlEx.Number == 1205)
+            {
+                return Conflict(
+                    "Existe una operacion simultanea. Intente nuevamente.");
+            }
+            catch (SqlException ex) when (ex.Number == 1205)
+            {
+                return Conflict(
+                    "Existe una operacion simultanea. Intente nuevamente.");
+            }
         }
+
 
         [HttpPatch("{id:int}/activar")]
         public async Task<IActionResult> ActivarUsuario(int id)
@@ -453,6 +503,247 @@ namespace Inventario.Api.Controllers
                 mensaje = "Contraseña actualizada correctamente.",
                 usuario.Id,
                 usuario.NombreUsuario
+            });
+        }
+
+        [HttpPost("{id:int}/roles/{rolId:int}")]
+        public async Task<IActionResult> AsignarRol(
+            int id,
+            int rolId)
+        {
+            if (!_environment.IsDevelopment())
+                return NotFound();
+
+            if (id <= 0 || rolId <= 0)
+                return BadRequest("Los IDs deben ser mayores que cero.");
+
+            var usuario = await _context.Usuarios.FindAsync(id);
+
+            if (usuario == null)
+                return NotFound("Usuario no encontrado.");
+
+            if (!usuario.Activo)
+                return Conflict("No se pueden asignar roles a un usuario inactivo.");
+
+            var rol = await _context.Roles.FindAsync(rolId);
+
+            if (rol == null)
+                return NotFound("Rol no encontrado.");
+
+            if (!rol.Activo)
+                return Conflict("No se puede asignar un rol inactivo.");
+
+            var existeAsignacion = await _context.UsuariosRoles
+                .AnyAsync(ur =>
+                    ur.UsuarioId == id &&
+                    ur.RolId == rolId);
+
+            if (existeAsignacion)
+                return Conflict("El usuario ya tiene asignado este rol.");
+
+            var usuarioRol = new UsuarioRol
+            {
+                UsuarioId = id,
+                RolId = rolId,
+                FechaAsignacion = DateTime.UtcNow
+            };
+
+            _context.UsuariosRoles.Add(usuarioRol);
+
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateException ex) when (
+                ex.InnerException is SqlException sqlEx &&
+                (sqlEx.Number == 2601 || sqlEx.Number == 2627))
+            {
+                return Conflict("El usuario ya tiene asignado este rol.");
+            }
+
+            return StatusCode(201, new
+            {
+                mensaje = "Rol asignado correctamente.",
+                usuarioId = usuario.Id,
+                usuario.NombreUsuario,
+                rolId = rol.Id,
+                rol = rol.Nombre,
+                usuarioRol.FechaAsignacion
+            });
+        }
+
+        [HttpDelete("{id:int}/roles/{rolId:int}")]
+        public async Task<IActionResult> QuitarRol(
+            int id,
+            int rolId)
+        {
+            if (!_environment.IsDevelopment())
+                return NotFound();
+
+            if (id <= 0 || rolId <= 0)
+                return BadRequest("Los IDs deben ser mayores que cero.");
+
+            await using var transaccion = await _context.Database
+                .BeginTransactionAsync(
+                    System.Data.IsolationLevel.Serializable);
+
+            try
+            {
+                var usuario = await _context.Usuarios.FindAsync(id);
+
+                if (usuario == null)
+                    return NotFound("Usuario no encontrado.");
+
+                var rol = await _context.Roles.FindAsync(rolId);
+
+                if (rol == null)
+                    return NotFound("Rol no encontrado.");
+
+                var usuarioRol = await _context.UsuariosRoles
+                    .FirstOrDefaultAsync(ur =>
+                        ur.UsuarioId == id &&
+                        ur.RolId == rolId);
+
+                if (usuarioRol == null)
+                    return NotFound("El usuario no tiene asignado este rol.");
+
+                if (rolId == 1 && usuario.Activo)
+                {
+                    var existeOtroAdministrador = await _context.UsuariosRoles
+                        .AnyAsync(ur =>
+                            ur.RolId == 1 &&
+                            ur.UsuarioId != id &&
+                            ur.Usuario.Activo &&
+                            ur.Rol.Activo);
+
+                    if (!existeOtroAdministrador)
+                    {
+                        return Conflict(
+                            "No se puede quitar el rol al ultimo administrador activo.");
+                    }
+                }
+
+                _context.UsuariosRoles.Remove(usuarioRol);
+
+                await _context.SaveChangesAsync();
+
+                await transaccion.CommitAsync();
+
+                return Ok(new
+                {
+                    mensaje = "Rol quitado correctamente.",
+                    usuarioId = usuario.Id,
+                    usuario.NombreUsuario,
+                    rolId = rol.Id,
+                    rol = rol.Nombre
+                });
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return Conflict(
+                    "La asignacion fue modificada o eliminada por otra operacion.");
+            }
+            catch (DbUpdateException ex) when (
+                ex.InnerException is SqlException sqlEx &&
+                sqlEx.Number == 1205)
+            {
+                return Conflict(
+                    "Existe una operacion simultanea. Intente nuevamente.");
+            }
+            catch (SqlException ex) when (ex.Number == 1205)
+            {
+                return Conflict(
+                    "Existe una operacion simultanea. Intente nuevamente.");
+            }
+        }
+
+        [HttpGet("{id:int}/roles")]
+        public async Task<IActionResult> ObtenerRolesDelUsuario(int id)
+        {
+            if (!_environment.IsDevelopment())
+                return NotFound();
+
+            if (id <= 0)
+                return BadRequest("El ID del usuario debe ser mayor que cero.");
+
+            var usuario = await _context.Usuarios
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Id == id);
+
+            if (usuario == null)
+                return NotFound("Usuario no encontrado.");
+
+            var roles = await _context.UsuariosRoles
+                .AsNoTracking()
+                .Where(ur => ur.UsuarioId == id)
+                .OrderBy(ur => ur.Rol.Nombre)
+                .Select(ur => new
+                {
+                    ur.Rol.Id,
+                    ur.Rol.Nombre,
+                    ur.Rol.Descripcion,
+                    ur.Rol.Activo,
+                    ur.FechaAsignacion
+                })
+                .ToListAsync();
+
+            return Ok(new
+            {
+                usuario.Id,
+                usuario.Nombre,
+                usuario.Apellido,
+                usuario.NombreUsuario,
+                usuario.Activo,
+                cantidadRoles = roles.Count,
+                roles
+            });
+        }
+
+        [HttpGet("{id:int}/permisos")]
+        public async Task<IActionResult> ObtenerPermisosDelUsuario(int id)
+        {
+            if (!_environment.IsDevelopment())
+                return NotFound();
+
+            if (id <= 0)
+                return BadRequest("El ID del usuario debe ser mayor que cero.");
+
+            var usuario = await _context.Usuarios
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Id == id);
+
+            if (usuario == null)
+                return NotFound("Usuario no encontrado.");
+
+            var permisos = await _context.RolesPermisos
+                .AsNoTracking()
+                .Where(rp =>
+                    rp.Rol.Activo &&
+                    rp.Permiso.Activo &&
+                    _context.UsuariosRoles.Any(ur =>
+                        ur.UsuarioId == id &&
+                        ur.Usuario.Activo &&
+                        ur.RolId == rp.RolId))
+                .Select(rp => new
+                {
+                    rp.Permiso.Id,
+                    rp.Permiso.Nombre,
+                    rp.Permiso.Codigo,
+                    rp.Permiso.Descripcion
+                })
+                .Distinct()
+                .OrderBy(p => p.Nombre)
+                .ToListAsync();
+
+            return Ok(new
+            {
+                usuario.Id,
+                usuario.Nombre,
+                usuario.Apellido,
+                usuario.NombreUsuario,
+                usuario.Activo,
+                cantidadPermisos = permisos.Count,
+                permisos
             });
         }
 

@@ -45,6 +45,14 @@ namespace Inventario.Api.Data
 
         public DbSet<Usuario> Usuarios { get; set; }
 
+        public DbSet<Rol> Roles { get; set; }
+
+        public DbSet<Permiso> Permisos { get; set; }
+
+        public DbSet<UsuarioRol> UsuariosRoles { get; set; }
+
+        public DbSet<RolPermiso> RolesPermisos { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -156,8 +164,12 @@ namespace Inventario.Api.Data
                     .HasForeignKey(pp => pp.ProveedorId)
                     .OnDelete(DeleteBehavior.Restrict);
 
-                entity.HasIndex(pp => new { pp.ProductoId, pp.ProveedorId })
-                    .IsUnique();
+                entity.HasIndex(pp => new
+                {
+                    pp.ProductoId,
+                    pp.ProveedorId
+                })
+                .IsUnique();
             });
 
             modelBuilder.Entity<Compra>(entity =>
@@ -203,8 +215,12 @@ namespace Inventario.Api.Data
                     .HasForeignKey(d => d.ProductoId)
                     .OnDelete(DeleteBehavior.Restrict);
 
-                entity.HasIndex(d => new { d.CompraId, d.ProductoId })
-                    .IsUnique();
+                entity.HasIndex(d => new
+                {
+                    d.CompraId,
+                    d.ProductoId
+                })
+                .IsUnique();
             });
 
             modelBuilder.Entity<Cliente>(entity =>
@@ -285,8 +301,12 @@ namespace Inventario.Api.Data
                     .HasForeignKey(d => d.ProductoId)
                     .OnDelete(DeleteBehavior.Restrict);
 
-                entity.HasIndex(d => new { d.VentaId, d.ProductoId })
-                    .IsUnique();
+                entity.HasIndex(d => new
+                {
+                    d.VentaId,
+                    d.ProductoId
+                })
+                .IsUnique();
             });
 
             modelBuilder.Entity<MetodoPago>(entity =>
@@ -401,6 +421,363 @@ namespace Inventario.Api.Data
                 entity.HasIndex(u => u.Email)
                     .IsUnique();
             });
+
+            modelBuilder.Entity<Rol>(entity =>
+            {
+                entity.HasKey(r => r.Id);
+
+                entity.Property(r => r.Nombre)
+                    .IsRequired()
+                    .HasMaxLength(100);
+
+                entity.Property(r => r.Descripcion)
+                    .IsRequired()
+                    .HasMaxLength(300);
+
+                entity.Property(r => r.Activo)
+                    .HasDefaultValue(true);
+
+                entity.HasIndex(r => r.Nombre)
+                    .IsUnique();
+
+                entity.HasData(
+                    new Rol
+                    {
+                        Id = 1,
+                        Nombre = "Administrador",
+                        Descripcion = "Acceso completo a todas las funcionalidades del sistema.",
+                        Activo = true,
+                        FechaCreacion = new DateTime(
+                            2026, 11, 23, 0, 0, 0, DateTimeKind.Utc)
+                    },
+                    new Rol
+                    {
+                        Id = 2,
+                        Nombre = "Vendedor",
+                        Descripcion = "Gestion de ventas y clientes.",
+                        Activo = true,
+                        FechaCreacion = new DateTime(
+                            2026, 11, 23, 0, 0, 0, DateTimeKind.Utc)
+                    },
+                    new Rol
+                    {
+                        Id = 3,
+                        Nombre = "Encargado de deposito",
+                        Descripcion = "Gestion de productos, stock, compras y proveedores.",
+                        Activo = true,
+                        FechaCreacion = new DateTime(
+                            2026, 11, 23, 0, 0, 0, DateTimeKind.Utc)
+                    },
+                    new Rol
+                    {
+                        Id = 4,
+                        Nombre = "Cajero",
+                        Descripcion = "Gestion de caja, cobros y pagos.",
+                        Activo = true,
+                        FechaCreacion = new DateTime(
+                            2026, 11, 23, 0, 0, 0, DateTimeKind.Utc)
+                    }
+                );
+            });
+
+
+            modelBuilder.Entity<Permiso>(entity =>
+            {
+                entity.HasKey(p => p.Id);
+
+                entity.Property(p => p.Nombre)
+                    .IsRequired()
+                    .HasMaxLength(100);
+
+                entity.Property(p => p.Codigo)
+                    .IsRequired()
+                    .HasMaxLength(100);
+
+                entity.Property(p => p.Descripcion)
+                    .IsRequired()
+                    .HasMaxLength(300);
+
+                entity.Property(p => p.Activo)
+                    .HasDefaultValue(true);
+
+                entity.HasIndex(p => p.Codigo)
+                    .IsUnique();
+
+                var fechaCreacion = new DateTime(
+                    2026, 11, 23, 0, 0, 0, DateTimeKind.Utc);
+
+                entity.HasData(
+                    new Permiso
+                    {
+                        Id = 1,
+                        Nombre = "Consultar productos",
+                        Codigo = "PRODUCTOS_VER",
+                        Descripcion = "Permite consultar los productos del sistema.",
+                        Activo = true,
+                        FechaCreacion = fechaCreacion
+                    },
+                    new Permiso
+                    {
+                        Id = 2,
+                        Nombre = "Gestionar productos",
+                        Codigo = "PRODUCTOS_GESTIONAR",
+                        Descripcion = "Permite crear, actualizar y cambiar el estado de productos.",
+                        Activo = true,
+                        FechaCreacion = fechaCreacion
+                    },
+                    new Permiso
+                    {
+                        Id = 3,
+                        Nombre = "Gestionar categorias",
+                        Codigo = "CATEGORIAS_GESTIONAR",
+                        Descripcion = "Permite gestionar categorias y subcategorias.",
+                        Activo = true,
+                        FechaCreacion = fechaCreacion
+                    },
+                    new Permiso
+                    {
+                        Id = 4,
+                        Nombre = "Gestionar unidades de medida",
+                        Codigo = "UNIDADES_GESTIONAR",
+                        Descripcion = "Permite gestionar las unidades de medida.",
+                        Activo = true,
+                        FechaCreacion = fechaCreacion
+                    },
+                    new Permiso
+                    {
+                        Id = 5,
+                        Nombre = "Gestionar marcas",
+                        Codigo = "MARCAS_GESTIONAR",
+                        Descripcion = "Permite gestionar las marcas de los productos.",
+                        Activo = true,
+                        FechaCreacion = fechaCreacion
+                    },
+                    new Permiso
+                    {
+                        Id = 6,
+                        Nombre = "Gestionar proveedores",
+                        Codigo = "PROVEEDORES_GESTIONAR",
+                        Descripcion = "Permite gestionar proveedores y sus productos asociados.",
+                        Activo = true,
+                        FechaCreacion = fechaCreacion
+                    },
+                    new Permiso
+                    {
+                        Id = 7,
+                        Nombre = "Gestionar stock",
+                        Codigo = "STOCK_GESTIONAR",
+                        Descripcion = "Permite gestionar el stock y sus movimientos.",
+                        Activo = true,
+                        FechaCreacion = fechaCreacion
+                    },
+                    new Permiso
+                    {
+                        Id = 8,
+                        Nombre = "Gestionar compras",
+                        Codigo = "COMPRAS_GESTIONAR",
+                        Descripcion = "Permite registrar y gestionar compras.",
+                        Activo = true,
+                        FechaCreacion = fechaCreacion
+                    },
+                    new Permiso
+                    {
+                        Id = 9,
+                        Nombre = "Gestionar clientes",
+                        Codigo = "CLIENTES_GESTIONAR",
+                        Descripcion = "Permite gestionar los clientes del sistema.",
+                        Activo = true,
+                        FechaCreacion = fechaCreacion
+                    },
+                    new Permiso
+                    {
+                        Id = 10,
+                        Nombre = "Gestionar ventas",
+                        Codigo = "VENTAS_GESTIONAR",
+                        Descripcion = "Permite registrar y gestionar ventas.",
+                        Activo = true,
+                        FechaCreacion = fechaCreacion
+                    },
+                    new Permiso
+                    {
+                        Id = 11,
+                        Nombre = "Gestionar caja",
+                        Codigo = "CAJA_GESTIONAR",
+                        Descripcion = "Permite abrir, cerrar y gestionar movimientos de caja.",
+                        Activo = true,
+                        FechaCreacion = fechaCreacion
+                    },
+                    new Permiso
+                    {
+                        Id = 12,
+                        Nombre = "Registrar cobros",
+                        Codigo = "COBROS_REGISTRAR",
+                        Descripcion = "Permite registrar pagos asociados a ventas.",
+                        Activo = true,
+                        FechaCreacion = fechaCreacion
+                    },
+                    new Permiso
+                    {
+                        Id = 13,
+                        Nombre = "Gestionar metodos de pago",
+                        Codigo = "METODOS_PAGO_GESTIONAR",
+                        Descripcion = "Permite administrar los metodos de pago disponibles.",
+                        Activo = true,
+                        FechaCreacion = fechaCreacion
+                    },
+                    new Permiso
+                    {
+                        Id = 14,
+                        Nombre = "Consultar reportes",
+                        Codigo = "REPORTES_VER",
+                        Descripcion = "Permite consultar los reportes generales del sistema.",
+                        Activo = true,
+                        FechaCreacion = fechaCreacion
+                    },
+                    new Permiso
+                    {
+                        Id = 15,
+                        Nombre = "Gestionar usuarios",
+                        Codigo = "USUARIOS_GESTIONAR",
+                        Descripcion = "Permite administrar los usuarios del sistema.",
+                        Activo = true,
+                        FechaCreacion = fechaCreacion
+                    },
+                    new Permiso
+                    {
+                        Id = 16,
+                        Nombre = "Gestionar roles",
+                        Codigo = "ROLES_GESTIONAR",
+                        Descripcion = "Permite administrar roles y asignaciones de usuarios.",
+                        Activo = true,
+                        FechaCreacion = fechaCreacion
+                    },
+                    new Permiso
+                    {
+                        Id = 17,
+                        Nombre = "Gestionar permisos",
+                        Codigo = "PERMISOS_GESTIONAR",
+                        Descripcion = "Permite administrar las asignaciones de permisos a roles.",
+                        Activo = true,
+                        FechaCreacion = fechaCreacion
+                    },
+                    new Permiso
+                    {
+                        Id = 18,
+                        Nombre = "Consultar auditoria",
+                        Codigo = "AUDITORIA_VER",
+                        Descripcion = "Permite consultar el historial de operaciones del sistema.",
+                        Activo = true,
+                        FechaCreacion = fechaCreacion
+                    },
+                    new Permiso
+                    {
+                        Id = 19,
+                        Nombre = "Consultar ventas",
+                        Codigo = "VENTAS_VER",
+                        Descripcion = "Permite consultar ventas sin modificarlas.",
+                        Activo = true,
+                        FechaCreacion = fechaCreacion
+                    }
+                );
+            });
+
+
+            modelBuilder.Entity<UsuarioRol>(entity =>
+            {
+                entity.HasKey(ur => new
+                {
+                    ur.UsuarioId,
+                    ur.RolId
+                });
+
+                entity.HasOne(ur => ur.Usuario)
+                    .WithMany()
+                    .HasForeignKey(ur => ur.UsuarioId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(ur => ur.Rol)
+                    .WithMany()
+                    .HasForeignKey(ur => ur.RolId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+
+            modelBuilder.Entity<RolPermiso>(entity =>
+            {
+                entity.HasKey(rp => new
+                {
+                    rp.RolId,
+                    rp.PermisoId
+                });
+
+                entity.HasOne(rp => rp.Rol)
+                    .WithMany()
+                    .HasForeignKey(rp => rp.RolId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(rp => rp.Permiso)
+                    .WithMany()
+                    .HasForeignKey(rp => rp.PermisoId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                var fechaAsignacion = new DateTime(
+                    2026, 11, 23, 0, 0, 0, DateTimeKind.Utc);
+
+                var asignaciones = new List<RolPermiso>();
+
+                // Administrador
+                for (int permisoId = 1; permisoId <= 19; permisoId++)
+                {
+                    asignaciones.Add(new RolPermiso
+                    {
+                        RolId = 1,
+                        PermisoId = permisoId,
+                        FechaAsignacion = fechaAsignacion
+                    });
+                }
+
+                // Vendedor
+                int[] permisosVendedor = { 1, 9, 10, 19 };
+
+                foreach (var permisoId in permisosVendedor)
+                {
+                    asignaciones.Add(new RolPermiso
+                    {
+                        RolId = 2,
+                        PermisoId = permisoId,
+                        FechaAsignacion = fechaAsignacion
+                    });
+                }
+
+                // Encargado de deposito
+                int[] permisosDeposito = { 1, 2, 3, 4, 5, 6, 7, 8 };
+
+                foreach (var permisoId in permisosDeposito)
+                {
+                    asignaciones.Add(new RolPermiso
+                    {
+                        RolId = 3,
+                        PermisoId = permisoId,
+                        FechaAsignacion = fechaAsignacion
+                    });
+                }
+
+                // Cajero
+                int[] permisosCajero = { 1, 9, 11, 12, 19 };
+
+                foreach (var permisoId in permisosCajero)
+                {
+                    asignaciones.Add(new RolPermiso
+                    {
+                        RolId = 4,
+                        PermisoId = permisoId,
+                        FechaAsignacion = fechaAsignacion
+                    });
+                }
+
+                entity.HasData(asignaciones);
+            });
+
         }
     }
 }
