@@ -53,6 +53,11 @@ namespace Inventario.Api.Data
 
         public DbSet<RolPermiso> RolesPermisos { get; set; }
 
+        public DbSet<SesionUsuario> SesionesUsuarios { get; set; }
+
+        public DbSet<RefreshToken> RefreshTokens { get; set; }
+
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -776,6 +781,72 @@ namespace Inventario.Api.Data
                 }
 
                 entity.HasData(asignaciones);
+            });
+
+            modelBuilder.Entity<SesionUsuario>(entity =>
+            {
+                entity.HasKey(s => s.Id);
+
+                entity.Property(s => s.MotivoRevocacion)
+                    .HasMaxLength(200);
+
+                entity.Property(s => s.DireccionIp)
+                    .HasMaxLength(45);
+
+                entity.Property(s => s.UserAgent)
+                    .HasMaxLength(500);
+
+                entity.HasOne(s => s.Usuario)
+                    .WithMany()
+                    .HasForeignKey(s => s.UsuarioId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasIndex(s => s.UsuarioId);
+
+                entity.HasIndex(s => s.UltimaActividad);
+
+                entity.HasIndex(s => s.FechaExpiracion);
+
+                entity.HasIndex(s => new
+                {
+                    s.UsuarioId,
+                    s.FechaRevocacion
+                });
+            });
+
+            modelBuilder.Entity<RefreshToken>(entity =>
+            {
+                entity.HasKey(rt => rt.Id);
+
+                entity.Property(rt => rt.TokenHash)
+                    .IsRequired()
+                    .HasMaxLength(64)
+                    .IsUnicode(false);
+
+                entity.Property(rt => rt.MotivoRevocacion)
+                    .HasMaxLength(200);
+
+                entity.HasIndex(rt => rt.TokenHash)
+                    .IsUnique();
+
+                entity.HasIndex(rt => rt.FechaExpiracion);
+
+                entity.HasIndex(rt => rt.SesionUsuarioId);
+
+                entity.HasOne(rt => rt.SesionUsuario)
+                    .WithMany()
+                    .HasForeignKey(rt => rt.SesionUsuarioId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne<RefreshToken>()
+                    .WithMany()
+                    .HasForeignKey(rt => rt.ReemplazadoPorId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasIndex(rt => rt.SesionUsuarioId)
+                    .IsUnique()
+                    .HasFilter(
+                        "[FechaUtilizacion] IS NULL AND [FechaRevocacion] IS NULL");
             });
 
         }

@@ -1,7 +1,7 @@
-﻿
-using Inventario.Api.Data;
+﻿using Inventario.Api.Data;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Inventario.Api.Authorization;
 
 namespace Inventario.Api.Controllers
 {
@@ -20,6 +20,7 @@ namespace Inventario.Api.Controllers
             _environment = environment;
         }
 
+        [Permiso(Permisos.PermisosGestionar)]
         [HttpGet]
         public async Task<IActionResult> ObtenerPermisos(
             [FromQuery] bool? activo,
@@ -60,6 +61,7 @@ namespace Inventario.Api.Controllers
             return Ok(permisos);
         }
 
+        [Permiso(Permisos.PermisosGestionar)]
         [HttpGet("{id:int}")]
         public async Task<IActionResult> ObtenerPermisoPorId(int id)
         {

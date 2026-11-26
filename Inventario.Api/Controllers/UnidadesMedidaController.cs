@@ -1,8 +1,9 @@
-﻿
+﻿using Microsoft.Data.SqlClient;
 using Inventario.Api.Data;
 using Inventario.Api.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Inventario.Api.Authorization;
 
 namespace Inventario.Api.Controllers
 {
@@ -17,6 +18,7 @@ namespace Inventario.Api.Controllers
             _context = context;
         }
 
+        [Permiso(Permisos.UnidadesGestionar)]
         [HttpGet]
         public async Task<ActionResult<IEnumerable<UnidadMedida>>> ObtenerUnidades()
         {
@@ -28,6 +30,7 @@ namespace Inventario.Api.Controllers
             return Ok(unidades);
         }
 
+        [Permiso(Permisos.UnidadesGestionar)]
         [HttpGet("{id:int}")]
         public async Task<ActionResult<UnidadMedida>> ObtenerUnidadPorId(int id)
         {
@@ -43,44 +46,80 @@ namespace Inventario.Api.Controllers
             return Ok(unidad);
         }
 
+        [Permiso(Permisos.UnidadesGestionar)]
         [HttpPost]
         public async Task<ActionResult<UnidadMedida>> CrearUnidad(
-            [FromBody] UnidadMedida nuevaUnidad)
+     [FromBody] UnidadMedida nuevaUnidad)
         {
             if (string.IsNullOrWhiteSpace(nuevaUnidad.Nombre) ||
                 string.IsNullOrWhiteSpace(nuevaUnidad.Abreviatura))
             {
-                return BadRequest("El nombre y la abreviatura son obligatorios.");
+                return BadRequest(
+                    "El nombre y la abreviatura son obligatorios.");
             }
 
             var nombre = nuevaUnidad.Nombre.Trim();
             var abreviatura = nuevaUnidad.Abreviatura.Trim();
 
-            var existe = await _context.UnidadesMedida
-                .AnyAsync(u =>
-                    u.Nombre.ToLower() == nombre.ToLower() ||
-                    u.Abreviatura.ToLower() == abreviatura.ToLower());
-
-            if (existe)
+            try
             {
-                return Conflict("Ya existe una unidad de medida con ese nombre o abreviatura.");
+                await using var transaccion = await _context.Database
+                    .BeginTransactionAsync(
+                        System.Data.IsolationLevel.Serializable);
+
+                var existe = await _context.UnidadesMedida
+                    .AnyAsync(u =>
+                        u.Nombre.ToLower() == nombre.ToLower() ||
+                        u.Abreviatura.ToLower() == abreviatura.ToLower());
+
+                if (existe)
+                {
+                    return Conflict(
+                        "Ya existe una unidad de medida con ese nombre o abreviatura.");
+                }
+
+                var unidad = new UnidadMedida
+                {
+                    Nombre = nombre,
+                    Abreviatura = abreviatura,
+                    PermiteFracciones = nuevaUnidad.PermiteFracciones
+                };
+
+                _context.UnidadesMedida.Add(unidad);
+
+                await _context.SaveChangesAsync();
+
+                await transaccion.CommitAsync();
+
+                return CreatedAtAction(
+                    nameof(ObtenerUnidadPorId),
+                    new { id = unidad.Id },
+                    unidad);
             }
-
-            var unidad = new UnidadMedida
+            catch (DbUpdateConcurrencyException)
             {
-                Nombre = nombre,
-                Abreviatura = abreviatura,
-                PermiteFracciones = nuevaUnidad.PermiteFracciones
-            };
-
-            _context.UnidadesMedida.Add(unidad);
-
-            await _context.SaveChangesAsync();
-
-            return CreatedAtAction(
-                nameof(ObtenerUnidadPorId),
-                new { id = unidad.Id },
-                unidad);
+                return Conflict(
+                    "La unidad de medida fue modificada por otra operación.");
+            }
+            catch (DbUpdateException ex) when (
+                ex.InnerException is SqlException sqlEx &&
+                (sqlEx.Number == 2601 || sqlEx.Number == 2627))
+            {
+                return Conflict(
+                    "Ya existe una unidad de medida con esos datos.");
+            }
+            catch (DbUpdateException ex) when (
+                ex.InnerException is SqlException sqlEx &&
+                sqlEx.Number == 1205)
+            {
+                return Conflict(
+                    "Existe una operación simultánea. Intente nuevamente.");
+            }
+            catch (SqlException ex) when (ex.Number == 1205)
+            {
+                return Conflict(
+                    "Existe una operación simultánea. Intente nuevamente.");
+            }
         }
     }
 }

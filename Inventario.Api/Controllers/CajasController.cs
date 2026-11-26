@@ -5,6 +5,7 @@ using Inventario.Api.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Inventario.Api.Authorization;
 
 namespace Inventario.Api.Controllers
 {
@@ -19,6 +20,7 @@ namespace Inventario.Api.Controllers
             _context = context;
         }
 
+        [Permiso(Permisos.CajaGestionar)]
         [HttpPost("abrir")]
         public async Task<IActionResult> AbrirCaja(
             [FromBody] AbrirCajaDto datos)
@@ -82,6 +84,7 @@ namespace Inventario.Api.Controllers
             });
         }
 
+        [Permiso(Permisos.CajaGestionar)]
         [HttpGet("abierta")]
         public async Task<IActionResult> ObtenerCajaAbierta()
         {
@@ -95,6 +98,7 @@ namespace Inventario.Api.Controllers
             return Ok(caja);
         }
 
+        [Permiso(Permisos.CajaGestionar)]
         [HttpGet]
         public async Task<IActionResult> ObtenerCajas(
             [FromQuery] string? estado)
@@ -127,6 +131,7 @@ namespace Inventario.Api.Controllers
             return Ok(cajas);
         }
 
+        [Permiso(Permisos.CajaGestionar)]
         [HttpGet("{id:int}")]
         public async Task<IActionResult> ObtenerCajaPorId(int id)
         {
@@ -143,6 +148,7 @@ namespace Inventario.Api.Controllers
             return Ok(caja);
         }
 
+        [Permiso(Permisos.CajaGestionar)]
         [HttpGet("{id:int}/resumen")]
         public async Task<IActionResult> ObtenerResumenCaja(int id)
         {
@@ -242,124 +248,162 @@ namespace Inventario.Api.Controllers
             });
         }
 
+        [Permiso(Permisos.CajaGestionar)]
         [HttpPatch("{id:int}/cerrar")]
         public async Task<IActionResult> CerrarCaja(
-            int id,
-            [FromBody] CerrarCajaDto datos)
+    int id,
+    [FromBody] CerrarCajaDto datos)
         {
-            if (id <= 0)
-                return BadRequest("El ID de la caja debe ser mayor que cero.");
-
-            if (datos == null)
-                return BadRequest("Debes proporcionar los datos del cierre.");
-
-            if (datos.MontoReal < 0)
-                return BadRequest("El monto real no puede ser negativo.");
-
-            if (decimal.Round(datos.MontoReal, 2) != datos.MontoReal)
-                return BadRequest("El monto real no puede superar dos decimales.");
-
             const decimal limiteDinero = 10000000000000000m;
 
+            if (id <= 0)
+                return BadRequest(
+                    "El ID de la caja debe ser mayor que cero.");
+
+            if (datos == null)
+                return BadRequest(
+                    "Debes proporcionar los datos del cierre.");
+
+            if (datos.MontoReal < 0)
+                return BadRequest(
+                    "El monto real no puede ser negativo.");
+
+            if (decimal.Round(datos.MontoReal, 2) != datos.MontoReal)
+                return BadRequest(
+                    "El monto real no puede superar dos decimales.");
+
             if (datos.MontoReal >= limiteDinero)
-                return BadRequest("El monto real supera el límite permitido.");
+                return BadRequest(
+                    "El monto real supera el límite permitido.");
 
             var observaciones = datos.Observaciones?.Trim();
 
             if (observaciones?.Length > 500)
-                return BadRequest("Las observaciones no pueden superar los 500 caracteres.");
+                return BadRequest(
+                    "Las observaciones no pueden superar los 500 caracteres.");
 
-            await using var transaccion =
-                await _context.Database.BeginTransactionAsync();
-
-            var cajaBloqueada = await _context.Cajas
-                .Where(c =>
-                    c.Id == id &&
-                    c.Estado == "Abierta")
-                .ExecuteUpdateAsync(cambios =>
-                    cambios.SetProperty(
-                        c => c.Estado,
-                        c => c.Estado));
-
-            if (cajaBloqueada == 0)
+            try
             {
-                var existeCaja = await _context.Cajas
-                    .AnyAsync(c => c.Id == id);
+                await using var transaccion = await _context.Database
+                    .BeginTransactionAsync(
+                        System.Data.IsolationLevel.Serializable);
 
-                if (!existeCaja)
-                    return NotFound("Caja no encontrada.");
+                var cajaBloqueada = await _context.Cajas
+                    .Where(c =>
+                        c.Id == id &&
+                        c.Estado == "Abierta")
+                    .ExecuteUpdateAsync(cambios =>
+                        cambios.SetProperty(
+                            c => c.Estado,
+                            c => c.Estado));
 
-                return Conflict("Solo se pueden cerrar cajas abiertas.");
-            }
-
-            var caja = await _context.Cajas
-                .SingleAsync(c => c.Id == id);
-
-            var cobrosEfectivo = await _context.PagosVenta
-                .Where(p =>
-                    p.CajaId == id &&
-                    p.MetodoPago.EsEfectivo)
-                .SumAsync(p => (decimal?)p.Monto) ?? 0m;
-
-            var totalIngresos = await _context.MovimientosCaja
-                .Where(m =>
-                    m.CajaId == id &&
-                    m.Tipo == TipoMovimientoCaja.Ingreso)
-                .SumAsync(m => (decimal?)m.Monto) ?? 0m;
-
-            var totalEgresos = await _context.MovimientosCaja
-                .Where(m =>
-                    m.CajaId == id &&
-                    m.Tipo == TipoMovimientoCaja.Egreso)
-                .SumAsync(m => (decimal?)m.Monto) ?? 0m;
-
-            var montoEsperado =
-                caja.MontoInicial +
-                cobrosEfectivo +
-                totalIngresos -
-                totalEgresos;
-
-            if (montoEsperado < 0 || montoEsperado >= limiteDinero)
-                return Conflict("El efectivo esperado se encuentra fuera de los límites permitidos.");
-
-            var diferencia = datos.MontoReal - montoEsperado;
-
-            caja.MontoEsperado = montoEsperado;
-            caja.MontoReal = datos.MontoReal;
-            caja.Diferencia = diferencia;
-            caja.FechaCierre = DateTime.UtcNow;
-            caja.Estado = "Cerrada";
-
-            if (!string.IsNullOrWhiteSpace(observaciones))
-                caja.Observaciones = observaciones;
-
-            await _context.SaveChangesAsync();
-
-            await transaccion.CommitAsync();
-
-            return Ok(new
-            {
-                mensaje = "Caja cerrada correctamente.",
-                caja.Id,
-                caja.FechaApertura,
-                caja.FechaCierre,
-                caja.MontoInicial,
-                cobrosEfectivo,
-                totalIngresos,
-                totalEgresos,
-                caja.MontoEsperado,
-                caja.MontoReal,
-                caja.Diferencia,
-                caja.Estado,
-                caja.Observaciones,
-                resultadoArqueo = diferencia switch
+                if (cajaBloqueada == 0)
                 {
-                    > 0 => "Sobrante",
-                    < 0 => "Faltante",
-                    _ => "Caja cuadrada"
-                }
-            });
-        }
+                    var existeCaja = await _context.Cajas
+                        .AnyAsync(c => c.Id == id);
 
+                    if (!existeCaja)
+                        return NotFound("Caja no encontrada.");
+
+                    return Conflict(
+                        "Solo se pueden cerrar cajas abiertas.");
+                }
+
+                var caja = await _context.Cajas
+                    .SingleAsync(c => c.Id == id);
+
+                var cobrosEfectivo = await _context.PagosVenta
+                    .Where(p =>
+                        p.CajaId == id &&
+                        p.MetodoPago.EsEfectivo)
+                    .SumAsync(p => (decimal?)p.Monto) ?? 0m;
+
+                var totalIngresos = await _context.MovimientosCaja
+                    .Where(m =>
+                        m.CajaId == id &&
+                        m.Tipo == TipoMovimientoCaja.Ingreso)
+                    .SumAsync(m => (decimal?)m.Monto) ?? 0m;
+
+                var totalEgresos = await _context.MovimientosCaja
+                    .Where(m =>
+                        m.CajaId == id &&
+                        m.Tipo == TipoMovimientoCaja.Egreso)
+                    .SumAsync(m => (decimal?)m.Monto) ?? 0m;
+
+                var montoEsperado = checked(
+                    caja.MontoInicial +
+                    cobrosEfectivo +
+                    totalIngresos -
+                    totalEgresos);
+
+                if (montoEsperado < 0 ||
+                    montoEsperado >= limiteDinero)
+                {
+                    return Conflict(
+                        "El efectivo esperado se encuentra fuera de los límites permitidos.");
+                }
+
+                var diferencia = checked(
+                    datos.MontoReal - montoEsperado);
+
+                caja.MontoEsperado = montoEsperado;
+                caja.MontoReal = datos.MontoReal;
+                caja.Diferencia = diferencia;
+                caja.FechaCierre = DateTime.UtcNow;
+                caja.Estado = "Cerrada";
+
+                if (!string.IsNullOrWhiteSpace(observaciones))
+                    caja.Observaciones = observaciones;
+
+                await _context.SaveChangesAsync();
+
+                await transaccion.CommitAsync();
+
+                return Ok(new
+                {
+                    mensaje = "Caja cerrada correctamente.",
+                    caja.Id,
+                    caja.FechaApertura,
+                    caja.FechaCierre,
+                    caja.MontoInicial,
+                    cobrosEfectivo,
+                    totalIngresos,
+                    totalEgresos,
+                    caja.MontoEsperado,
+                    caja.MontoReal,
+                    caja.Diferencia,
+                    caja.Estado,
+                    caja.Observaciones,
+                    resultadoArqueo = diferencia switch
+                    {
+                        > 0 => "Sobrante",
+                        < 0 => "Faltante",
+                        _ => "Caja cuadrada"
+                    }
+                });
+            }
+            catch (OverflowException)
+            {
+                return Conflict(
+                    "Los importes de la caja superan los límites permitidos.");
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return Conflict(
+                    "La caja fue modificada por otra operación.");
+            }
+            catch (DbUpdateException ex) when (
+                ex.InnerException is SqlException sqlEx &&
+                sqlEx.Number == 1205)
+            {
+                return Conflict(
+                    "Existe una operación simultánea. Intente nuevamente.");
+            }
+            catch (SqlException ex) when (ex.Number == 1205)
+            {
+                return Conflict(
+                    "Existe una operación simultánea. Intente nuevamente.");
+            }
+        }
     }
 }

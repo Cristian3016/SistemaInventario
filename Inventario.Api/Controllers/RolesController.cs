@@ -1,10 +1,11 @@
-﻿
-using Inventario.Api.Data;
+﻿using Inventario.Api.Data;
 using Inventario.Api.DTOs;
 using Inventario.Api.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Inventario.Api.Authorization;
+using System.Security.Claims;
 
 namespace Inventario.Api.Controllers
 {
@@ -23,9 +24,10 @@ namespace Inventario.Api.Controllers
             _environment = environment;
         }
 
+        [Permiso(Permisos.RolesGestionar)]
         [HttpPost]
         public async Task<IActionResult> CrearRol(
-            [FromBody] CrearRolDto datos)
+     [FromBody] CrearRolDto datos)
         {
             if (!_environment.IsDevelopment())
                 return NotFound();
@@ -33,40 +35,81 @@ namespace Inventario.Api.Controllers
             if (datos == null)
                 return BadRequest("Debes proporcionar los datos del rol.");
 
-            var nombre = datos.Nombre?.Trim();
-            var descripcion = datos.Descripcion?.Trim();
+            var identificador = User.FindFirstValue(ClaimTypes.NameIdentifier)
+                ?? User.FindFirstValue("sub");
 
-            if (string.IsNullOrWhiteSpace(nombre))
-                return BadRequest("El nombre del rol es obligatorio.");
-
-            if (nombre.Length > 100)
-                return BadRequest("El nombre no puede superar los 100 caracteres.");
-
-            if (string.IsNullOrWhiteSpace(descripcion))
-                return BadRequest("La descripcion es obligatoria.");
-
-            if (descripcion.Length > 300)
-                return BadRequest("La descripcion no puede superar los 300 caracteres.");
-
-            var existeRol = await _context.Roles
-                .AnyAsync(r => r.Nombre.ToLower() == nombre.ToLower());
-
-            if (existeRol)
-                return Conflict("Ya existe un rol con ese nombre.");
-
-            var rol = new Rol
+            if (!int.TryParse(identificador, out var usuarioAutenticadoId) ||
+                usuarioAutenticadoId <= 0)
             {
-                Nombre = nombre,
-                Descripcion = descripcion,
-                Activo = true,
-                FechaCreacion = DateTime.UtcNow
-            };
-
-            _context.Roles.Add(rol);
+                return Unauthorized();
+            }
 
             try
             {
+                await using var transaccion = await _context.Database
+                    .BeginTransactionAsync(
+                        System.Data.IsolationLevel.Serializable);
+
+                var esAdministrador = await _context.UsuariosRoles
+                    .AnyAsync(ur =>
+                        ur.UsuarioId == usuarioAutenticadoId &&
+                        ur.RolId == 1 &&
+                        ur.Usuario.Activo &&
+                        ur.Rol.Activo);
+
+                if (!esAdministrador)
+                    return Forbid();
+
+                var nombre = datos.Nombre?.Trim();
+                var descripcion = datos.Descripcion?.Trim();
+
+                if (string.IsNullOrWhiteSpace(nombre))
+                    return BadRequest("El nombre del rol es obligatorio.");
+
+                if (nombre.Length > 100)
+                    return BadRequest("El nombre no puede superar los 100 caracteres.");
+
+                if (string.IsNullOrWhiteSpace(descripcion))
+                    return BadRequest("La descripción es obligatoria.");
+
+                if (descripcion.Length > 300)
+                    return BadRequest("La descripción no puede superar los 300 caracteres.");
+
+                var existeRol = await _context.Roles
+                    .AnyAsync(r =>
+                        r.Nombre.ToLower() == nombre.ToLower());
+
+                if (existeRol)
+                    return Conflict("Ya existe un rol con ese nombre.");
+
+                var rol = new Rol
+                {
+                    Nombre = nombre,
+                    Descripcion = descripcion,
+                    Activo = true,
+                    FechaCreacion = DateTime.UtcNow
+                };
+
+                _context.Roles.Add(rol);
+
                 await _context.SaveChangesAsync();
+
+                await transaccion.CommitAsync();
+
+                return StatusCode(201, new
+                {
+                    mensaje = "Rol registrado correctamente.",
+                    rol.Id,
+                    rol.Nombre,
+                    rol.Descripcion,
+                    rol.Activo,
+                    rol.FechaCreacion
+                });
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return Conflict(
+                    "El rol fue modificado por otra operación.");
             }
             catch (DbUpdateException ex) when (
                 ex.InnerException is SqlException sqlEx &&
@@ -74,18 +117,21 @@ namespace Inventario.Api.Controllers
             {
                 return Conflict("Ya existe un rol con ese nombre.");
             }
-
-            return StatusCode(201, new
+            catch (DbUpdateException ex) when (
+                ex.InnerException is SqlException sqlEx &&
+                sqlEx.Number == 1205)
             {
-                mensaje = "Rol registrado correctamente.",
-                rol.Id,
-                rol.Nombre,
-                rol.Descripcion,
-                rol.Activo,
-                rol.FechaCreacion
-            });
+                return Conflict(
+                    "Existe una operación simultánea. Intente nuevamente.");
+            }
+            catch (SqlException ex) when (ex.Number == 1205)
+            {
+                return Conflict(
+                    "Existe una operación simultánea. Intente nuevamente.");
+            }
         }
 
+        [Permiso(Permisos.RolesGestionar)]
         [HttpGet]
         public async Task<IActionResult> ObtenerRoles(
             [FromQuery] bool? activo,
@@ -123,6 +169,7 @@ namespace Inventario.Api.Controllers
             return Ok(roles);
         }
 
+        [Permiso(Permisos.RolesGestionar)]
         [HttpGet("{id:int}")]
         public async Task<IActionResult> ObtenerRolPorId(int id)
         {
@@ -151,10 +198,11 @@ namespace Inventario.Api.Controllers
             return Ok(rol);
         }
 
+        [Permiso(Permisos.RolesGestionar)]
         [HttpPut("{id:int}")]
         public async Task<IActionResult> ActualizarRol(
-            int id,
-            [FromBody] ActualizarRolDto datos)
+    int id,
+    [FromBody] ActualizarRolDto datos)
         {
             if (!_environment.IsDevelopment())
                 return NotFound();
@@ -165,46 +213,86 @@ namespace Inventario.Api.Controllers
             if (datos == null)
                 return BadRequest("Debes proporcionar los datos del rol.");
 
-            var rol = await _context.Roles.FindAsync(id);
+            var identificador = User.FindFirstValue(ClaimTypes.NameIdentifier)
+                ?? User.FindFirstValue("sub");
 
-            if (rol == null)
-                return NotFound("Rol no encontrado.");
-
-            if (rol.Id == 1)
-                return Conflict("No se puede modificar el rol Administrador.");
-
-            if (!rol.Activo)
-                return Conflict("No se puede modificar un rol inactivo.");
-
-            var nombre = datos.Nombre?.Trim();
-            var descripcion = datos.Descripcion?.Trim();
-
-            if (string.IsNullOrWhiteSpace(nombre))
-                return BadRequest("El nombre del rol es obligatorio.");
-
-            if (nombre.Length > 100)
-                return BadRequest("El nombre no puede superar los 100 caracteres.");
-
-            if (string.IsNullOrWhiteSpace(descripcion))
-                return BadRequest("La descripcion es obligatoria.");
-
-            if (descripcion.Length > 300)
-                return BadRequest("La descripcion no puede superar los 300 caracteres.");
-
-            var existeRol = await _context.Roles
-                .AnyAsync(r =>
-                    r.Nombre.ToLower() == nombre.ToLower() &&
-                    r.Id != id);
-
-            if (existeRol)
-                return Conflict("Ya existe un rol con ese nombre.");
-
-            rol.Nombre = nombre;
-            rol.Descripcion = descripcion;
+            if (!int.TryParse(identificador, out var usuarioAutenticadoId) ||
+                usuarioAutenticadoId <= 0)
+            {
+                return Unauthorized();
+            }
 
             try
             {
+                await using var transaccion = await _context.Database
+                    .BeginTransactionAsync(
+                        System.Data.IsolationLevel.Serializable);
+
+                var esAdministrador = await _context.UsuariosRoles
+                    .AnyAsync(ur =>
+                        ur.UsuarioId == usuarioAutenticadoId &&
+                        ur.RolId == 1 &&
+                        ur.Usuario.Activo &&
+                        ur.Rol.Activo);
+
+                if (!esAdministrador)
+                    return Forbid();
+
+                var rol = await _context.Roles.FindAsync(id);
+
+                if (rol == null)
+                    return NotFound("Rol no encontrado.");
+
+                if (rol.Id == 1)
+                    return Conflict("No se puede modificar el rol Administrador.");
+
+                if (!rol.Activo)
+                    return Conflict("No se puede modificar un rol inactivo.");
+
+                var nombre = datos.Nombre?.Trim();
+                var descripcion = datos.Descripcion?.Trim();
+
+                if (string.IsNullOrWhiteSpace(nombre))
+                    return BadRequest("El nombre del rol es obligatorio.");
+
+                if (nombre.Length > 100)
+                    return BadRequest("El nombre no puede superar los 100 caracteres.");
+
+                if (string.IsNullOrWhiteSpace(descripcion))
+                    return BadRequest("La descripción es obligatoria.");
+
+                if (descripcion.Length > 300)
+                    return BadRequest("La descripción no puede superar los 300 caracteres.");
+
+                var existeRol = await _context.Roles
+                    .AnyAsync(r =>
+                        r.Nombre.ToLower() == nombre.ToLower() &&
+                        r.Id != id);
+
+                if (existeRol)
+                    return Conflict("Ya existe un rol con ese nombre.");
+
+                rol.Nombre = nombre;
+                rol.Descripcion = descripcion;
+
                 await _context.SaveChangesAsync();
+
+                await transaccion.CommitAsync();
+
+                return Ok(new
+                {
+                    mensaje = "Rol actualizado correctamente.",
+                    rol.Id,
+                    rol.Nombre,
+                    rol.Descripcion,
+                    rol.Activo,
+                    rol.FechaCreacion
+                });
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return Conflict(
+                    "El rol fue modificado por otra operación.");
             }
             catch (DbUpdateException ex) when (
                 ex.InnerException is SqlException sqlEx &&
@@ -212,18 +300,21 @@ namespace Inventario.Api.Controllers
             {
                 return Conflict("Ya existe un rol con ese nombre.");
             }
-
-            return Ok(new
+            catch (DbUpdateException ex) when (
+                ex.InnerException is SqlException sqlEx &&
+                sqlEx.Number == 1205)
             {
-                mensaje = "Rol actualizado correctamente.",
-                rol.Id,
-                rol.Nombre,
-                rol.Descripcion,
-                rol.Activo,
-                rol.FechaCreacion
-            });
+                return Conflict(
+                    "Existe una operación simultánea. Intente nuevamente.");
+            }
+            catch (SqlException ex) when (ex.Number == 1205)
+            {
+                return Conflict(
+                    "Existe una operación simultánea. Intente nuevamente.");
+            }
         }
 
+        [Permiso(Permisos.RolesGestionar)]
         [HttpPatch("{id:int}/desactivar")]
         public async Task<IActionResult> DesactivarRol(int id)
         {
@@ -233,30 +324,76 @@ namespace Inventario.Api.Controllers
             if (id <= 0)
                 return BadRequest("El ID del rol debe ser mayor que cero.");
 
-            var rol = await _context.Roles.FindAsync(id);
+            var identificador = User.FindFirstValue(ClaimTypes.NameIdentifier)
+                ?? User.FindFirstValue("sub");
 
-            if (rol == null)
-                return NotFound("Rol no encontrado.");
-
-            if (rol.Id == 1)
-                return Conflict("No se puede desactivar el rol Administrador.");
-
-            if (!rol.Activo)
-                return Conflict("El rol ya se encuentra desactivado.");
-
-            rol.Activo = false;
-
-            await _context.SaveChangesAsync();
-
-            return Ok(new
+            if (!int.TryParse(identificador, out var usuarioAutenticadoId) ||
+                usuarioAutenticadoId <= 0)
             {
-                mensaje = "Rol desactivado correctamente.",
-                rol.Id,
-                rol.Nombre,
-                rol.Activo
-            });
+                return Unauthorized();
+            }
+
+            try
+            {
+                await using var transaccion = await _context.Database
+                    .BeginTransactionAsync(
+                        System.Data.IsolationLevel.Serializable);
+
+                var esAdministrador = await _context.UsuariosRoles
+                    .AnyAsync(ur =>
+                        ur.UsuarioId == usuarioAutenticadoId &&
+                        ur.RolId == 1 &&
+                        ur.Usuario.Activo &&
+                        ur.Rol.Activo);
+
+                if (!esAdministrador)
+                    return Forbid();
+
+                var rol = await _context.Roles.FindAsync(id);
+
+                if (rol == null)
+                    return NotFound("Rol no encontrado.");
+
+                if (rol.Id == 1)
+                    return Conflict("No se puede desactivar el rol Administrador.");
+
+                if (!rol.Activo)
+                    return Conflict("El rol ya se encuentra desactivado.");
+
+                rol.Activo = false;
+
+                await _context.SaveChangesAsync();
+
+                await transaccion.CommitAsync();
+
+                return Ok(new
+                {
+                    mensaje = "Rol desactivado correctamente.",
+                    rol.Id,
+                    rol.Nombre,
+                    rol.Activo
+                });
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return Conflict(
+                    "El rol fue modificado por otra operación.");
+            }
+            catch (DbUpdateException ex) when (
+                ex.InnerException is SqlException sqlEx &&
+                sqlEx.Number == 1205)
+            {
+                return Conflict(
+                    "Existe una operación simultánea. Intente nuevamente.");
+            }
+            catch (SqlException ex) when (ex.Number == 1205)
+            {
+                return Conflict(
+                    "Existe una operación simultánea. Intente nuevamente.");
+            }
         }
 
+        [Permiso(Permisos.RolesGestionar)]
         [HttpPatch("{id:int}/activar")]
         public async Task<IActionResult> ActivarRol(int id)
         {
@@ -266,27 +403,73 @@ namespace Inventario.Api.Controllers
             if (id <= 0)
                 return BadRequest("El ID del rol debe ser mayor que cero.");
 
-            var rol = await _context.Roles.FindAsync(id);
+            var identificador = User.FindFirstValue(ClaimTypes.NameIdentifier)
+                ?? User.FindFirstValue("sub");
 
-            if (rol == null)
-                return NotFound("Rol no encontrado.");
-
-            if (rol.Activo)
-                return Conflict("El rol ya se encuentra activado.");
-
-            rol.Activo = true;
-
-            await _context.SaveChangesAsync();
-
-            return Ok(new
+            if (!int.TryParse(identificador, out var usuarioAutenticadoId) ||
+                usuarioAutenticadoId <= 0)
             {
-                mensaje = "Rol activado correctamente.",
-                rol.Id,
-                rol.Nombre,
-                rol.Activo
-            });
+                return Unauthorized();
+            }
+
+            try
+            {
+                await using var transaccion = await _context.Database
+                    .BeginTransactionAsync(
+                        System.Data.IsolationLevel.Serializable);
+
+                var esAdministrador = await _context.UsuariosRoles
+                    .AnyAsync(ur =>
+                        ur.UsuarioId == usuarioAutenticadoId &&
+                        ur.RolId == 1 &&
+                        ur.Usuario.Activo &&
+                        ur.Rol.Activo);
+
+                if (!esAdministrador)
+                    return Forbid();
+
+                var rol = await _context.Roles.FindAsync(id);
+
+                if (rol == null)
+                    return NotFound("Rol no encontrado.");
+
+                if (rol.Activo)
+                    return Conflict("El rol ya se encuentra activado.");
+
+                rol.Activo = true;
+
+                await _context.SaveChangesAsync();
+
+                await transaccion.CommitAsync();
+
+                return Ok(new
+                {
+                    mensaje = "Rol activado correctamente.",
+                    rol.Id,
+                    rol.Nombre,
+                    rol.Activo
+                });
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return Conflict(
+                    "El rol fue modificado por otra operación.");
+            }
+            catch (DbUpdateException ex) when (
+                ex.InnerException is SqlException sqlEx &&
+                sqlEx.Number == 1205)
+            {
+                return Conflict(
+                    "Existe una operación simultánea. Intente nuevamente.");
+            }
+            catch (SqlException ex) when (ex.Number == 1205)
+            {
+                return Conflict(
+                    "Existe una operación simultánea. Intente nuevamente.");
+            }
         }
 
+        [Permiso(Permisos.PermisosGestionar)]
         [HttpGet("{id:int}/permisos")]
         public async Task<IActionResult> ObtenerPermisosDelRol(int id)
         {
@@ -328,6 +511,7 @@ namespace Inventario.Api.Controllers
             });
         }
 
+        [Permiso(Permisos.PermisosGestionar)]
         [HttpPost("{id:int}/permisos/{permisoId:int}")]
         public async Task<IActionResult> AsignarPermiso(
             int id,
@@ -339,42 +523,83 @@ namespace Inventario.Api.Controllers
             if (id <= 0 || permisoId <= 0)
                 return BadRequest("Los IDs deben ser mayores que cero.");
 
-            var rol = await _context.Roles.FindAsync(id);
+            var identificador = User.FindFirstValue(ClaimTypes.NameIdentifier)
+                ?? User.FindFirstValue("sub");
 
-            if (rol == null)
-                return NotFound("Rol no encontrado.");
-
-            if (!rol.Activo)
-                return Conflict("No se pueden asignar permisos a un rol inactivo.");
-
-            var permiso = await _context.Permisos.FindAsync(permisoId);
-
-            if (permiso == null)
-                return NotFound("Permiso no encontrado.");
-
-            if (!permiso.Activo)
-                return Conflict("No se puede asignar un permiso inactivo.");
-
-            var existeAsignacion = await _context.RolesPermisos
-                .AnyAsync(rp =>
-                    rp.RolId == id &&
-                    rp.PermisoId == permisoId);
-
-            if (existeAsignacion)
-                return Conflict("El rol ya tiene asignado este permiso.");
-
-            var rolPermiso = new RolPermiso
+            if (!int.TryParse(identificador, out var usuarioAutenticadoId) ||
+                usuarioAutenticadoId <= 0)
             {
-                RolId = id,
-                PermisoId = permisoId,
-                FechaAsignacion = DateTime.UtcNow
-            };
-
-            _context.RolesPermisos.Add(rolPermiso);
+                return Unauthorized();
+            }
 
             try
             {
+                await using var transaccion = await _context.Database
+                    .BeginTransactionAsync(
+                        System.Data.IsolationLevel.Serializable);
+
+                var esAdministrador = await _context.UsuariosRoles
+                    .AnyAsync(ur =>
+                        ur.UsuarioId == usuarioAutenticadoId &&
+                        ur.RolId == 1 &&
+                        ur.Usuario.Activo &&
+                        ur.Rol.Activo);
+
+                if (!esAdministrador)
+                    return Forbid();
+
+                var rol = await _context.Roles.FindAsync(id);
+
+                if (rol == null)
+                    return NotFound("Rol no encontrado.");
+
+                if (!rol.Activo)
+                    return Conflict("No se pueden asignar permisos a un rol inactivo.");
+
+                var permiso = await _context.Permisos.FindAsync(permisoId);
+
+                if (permiso == null)
+                    return NotFound("Permiso no encontrado.");
+
+                if (!permiso.Activo)
+                    return Conflict("No se puede asignar un permiso inactivo.");
+
+                var existeAsignacion = await _context.RolesPermisos
+                    .AnyAsync(rp =>
+                        rp.RolId == id &&
+                        rp.PermisoId == permisoId);
+
+                if (existeAsignacion)
+                    return Conflict("El rol ya tiene asignado este permiso.");
+
+                var rolPermiso = new RolPermiso
+                {
+                    RolId = id,
+                    PermisoId = permisoId,
+                    FechaAsignacion = DateTime.UtcNow
+                };
+
+                _context.RolesPermisos.Add(rolPermiso);
+
                 await _context.SaveChangesAsync();
+
+                await transaccion.CommitAsync();
+
+                return StatusCode(201, new
+                {
+                    mensaje = "Permiso asignado correctamente.",
+                    rolId = rol.Id,
+                    rol = rol.Nombre,
+                    permisoId = permiso.Id,
+                    permiso = permiso.Nombre,
+                    permiso.Codigo,
+                    rolPermiso.FechaAsignacion
+                });
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return Conflict(
+                    "La asignación fue modificada por otra operación.");
             }
             catch (DbUpdateException ex) when (
                 ex.InnerException is SqlException sqlEx &&
@@ -382,23 +607,25 @@ namespace Inventario.Api.Controllers
             {
                 return Conflict("El rol ya tiene asignado este permiso.");
             }
-
-            return StatusCode(201, new
+            catch (DbUpdateException ex) when (
+                ex.InnerException is SqlException sqlEx &&
+                sqlEx.Number == 1205)
             {
-                mensaje = "Permiso asignado correctamente.",
-                rolId = rol.Id,
-                rol = rol.Nombre,
-                permisoId = permiso.Id,
-                permiso = permiso.Nombre,
-                permiso.Codigo,
-                rolPermiso.FechaAsignacion
-            });
+                return Conflict(
+                    "Existe una operación simultánea. Intente nuevamente.");
+            }
+            catch (SqlException ex) when (ex.Number == 1205)
+            {
+                return Conflict(
+                    "Existe una operación simultánea. Intente nuevamente.");
+            }
         }
 
+        [Permiso(Permisos.PermisosGestionar)]
         [HttpDelete("{id:int}/permisos/{permisoId:int}")]
         public async Task<IActionResult> QuitarPermiso(
-            int id,
-            int permisoId)
+    int id,
+    int permisoId)
         {
             if (!_environment.IsDevelopment())
                 return NotFound();
@@ -406,48 +633,86 @@ namespace Inventario.Api.Controllers
             if (id <= 0 || permisoId <= 0)
                 return BadRequest("Los IDs deben ser mayores que cero.");
 
-            var rol = await _context.Roles.FindAsync(id);
+            var identificador = User.FindFirstValue(ClaimTypes.NameIdentifier)
+                ?? User.FindFirstValue("sub");
 
-            if (rol == null)
-                return NotFound("Rol no encontrado.");
-
-            if (rol.Id == 1)
-                return Conflict("No se pueden quitar permisos al rol Administrador.");
-
-            var permiso = await _context.Permisos.FindAsync(permisoId);
-
-            if (permiso == null)
-                return NotFound("Permiso no encontrado.");
-
-            var rolPermiso = await _context.RolesPermisos
-                .FirstOrDefaultAsync(rp =>
-                    rp.RolId == id &&
-                    rp.PermisoId == permisoId);
-
-            if (rolPermiso == null)
-                return NotFound("El rol no tiene asignado este permiso.");
-
-            _context.RolesPermisos.Remove(rolPermiso);
+            if (!int.TryParse(identificador, out var usuarioAutenticadoId) ||
+                usuarioAutenticadoId <= 0)
+            {
+                return Unauthorized();
+            }
 
             try
             {
+                await using var transaccion = await _context.Database
+                    .BeginTransactionAsync(
+                        System.Data.IsolationLevel.Serializable);
+
+                var esAdministrador = await _context.UsuariosRoles
+                    .AnyAsync(ur =>
+                        ur.UsuarioId == usuarioAutenticadoId &&
+                        ur.RolId == 1 &&
+                        ur.Usuario.Activo &&
+                        ur.Rol.Activo);
+
+                if (!esAdministrador)
+                    return Forbid();
+
+                var rol = await _context.Roles.FindAsync(id);
+
+                if (rol == null)
+                    return NotFound("Rol no encontrado.");
+
+                if (rol.Id == 1)
+                    return Conflict(
+                        "No se pueden quitar permisos al rol Administrador.");
+
+                var permiso = await _context.Permisos.FindAsync(permisoId);
+
+                if (permiso == null)
+                    return NotFound("Permiso no encontrado.");
+
+                var rolPermiso = await _context.RolesPermisos
+                    .FirstOrDefaultAsync(rp =>
+                        rp.RolId == id &&
+                        rp.PermisoId == permisoId);
+
+                if (rolPermiso == null)
+                    return NotFound("El rol no tiene asignado este permiso.");
+
+                _context.RolesPermisos.Remove(rolPermiso);
+
                 await _context.SaveChangesAsync();
+
+                await transaccion.CommitAsync();
+
+                return Ok(new
+                {
+                    mensaje = "Permiso quitado correctamente.",
+                    rolId = rol.Id,
+                    rol = rol.Nombre,
+                    permisoId = permiso.Id,
+                    permiso = permiso.Nombre,
+                    permiso.Codigo
+                });
             }
             catch (DbUpdateConcurrencyException)
             {
-                return Conflict("La asignacion fue modificada o eliminada por otra operacion.");
+                return Conflict(
+                    "La asignación fue modificada o eliminada por otra operación.");
             }
-
-            return Ok(new
+            catch (DbUpdateException ex) when (
+                ex.InnerException is SqlException sqlEx &&
+                sqlEx.Number == 1205)
             {
-                mensaje = "Permiso quitado correctamente.",
-                rolId = rol.Id,
-                rol = rol.Nombre,
-                permisoId = permiso.Id,
-                permiso = permiso.Nombre,
-                permiso.Codigo
-            });
+                return Conflict(
+                    "Existe una operación simultánea. Intente nuevamente.");
+            }
+            catch (SqlException ex) when (ex.Number == 1205)
+            {
+                return Conflict(
+                    "Existe una operación simultánea. Intente nuevamente.");
+            }
         }
-
     }
 }

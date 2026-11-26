@@ -1,7 +1,7 @@
-﻿
-using Inventario.Api.Data;
+﻿using Inventario.Api.Data;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Inventario.Api.Authorization;
 
 namespace Inventario.Api.Controllers
 {
@@ -16,6 +16,7 @@ namespace Inventario.Api.Controllers
             _context = context;
         }
 
+        [Permiso(Permisos.CobrosRegistrar)]
         [HttpGet]
         public async Task<IActionResult> ObtenerMetodosPago(
             [FromQuery] bool? activo)
@@ -42,6 +43,7 @@ namespace Inventario.Api.Controllers
             return Ok(metodosPago);
         }
 
+        [Permiso(Permisos.CobrosRegistrar)]
         [HttpGet("{id:int}")]
         public async Task<IActionResult> ObtenerMetodoPagoPorId(int id)
         {

@@ -770,6 +770,56 @@ namespace Inventario.Api.Migrations
                     b.ToTable("Proveedores");
                 });
 
+            modelBuilder.Entity("Inventario.Api.Models.RefreshToken", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("FechaCreacion")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("FechaExpiracion")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("FechaRevocacion")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("FechaUtilizacion")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("MotivoRevocacion")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid?>("ReemplazadoPorId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("SesionUsuarioId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(64)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FechaExpiracion");
+
+                    b.HasIndex("ReemplazadoPorId");
+
+                    b.HasIndex("SesionUsuarioId")
+                        .IsUnique()
+                        .HasFilter("[FechaUtilizacion] IS NULL AND [FechaRevocacion] IS NULL");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.ToTable("RefreshTokens");
+                });
+
             modelBuilder.Entity("Inventario.Api.Models.Rol", b =>
                 {
                     b.Property<int>("Id")
@@ -1074,6 +1124,52 @@ namespace Inventario.Api.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Inventario.Api.Models.SesionUsuario", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("DireccionIp")
+                        .HasMaxLength(45)
+                        .HasColumnType("nvarchar(45)");
+
+                    b.Property<DateTime>("FechaCreacion")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("FechaExpiracion")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("FechaRevocacion")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("MotivoRevocacion")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime>("UltimaActividad")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UserAgent")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("UsuarioId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FechaExpiracion");
+
+                    b.HasIndex("UltimaActividad");
+
+                    b.HasIndex("UsuarioId");
+
+                    b.HasIndex("UsuarioId", "FechaRevocacion");
+
+                    b.ToTable("SesionesUsuarios");
+                });
+
             modelBuilder.Entity("Inventario.Api.Models.UnidadMedida", b =>
                 {
                     b.Property<int>("Id")
@@ -1356,6 +1452,22 @@ namespace Inventario.Api.Migrations
                     b.Navigation("Proveedor");
                 });
 
+            modelBuilder.Entity("Inventario.Api.Models.RefreshToken", b =>
+                {
+                    b.HasOne("Inventario.Api.Models.RefreshToken", null)
+                        .WithMany()
+                        .HasForeignKey("ReemplazadoPorId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Inventario.Api.Models.SesionUsuario", "SesionUsuario")
+                        .WithMany()
+                        .HasForeignKey("SesionUsuarioId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("SesionUsuario");
+                });
+
             modelBuilder.Entity("Inventario.Api.Models.RolPermiso", b =>
                 {
                     b.HasOne("Inventario.Api.Models.Permiso", "Permiso")
@@ -1373,6 +1485,17 @@ namespace Inventario.Api.Migrations
                     b.Navigation("Permiso");
 
                     b.Navigation("Rol");
+                });
+
+            modelBuilder.Entity("Inventario.Api.Models.SesionUsuario", b =>
+                {
+                    b.HasOne("Inventario.Api.Models.Usuario", "Usuario")
+                        .WithMany()
+                        .HasForeignKey("UsuarioId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Usuario");
                 });
 
             modelBuilder.Entity("Inventario.Api.Models.UsuarioRol", b =>

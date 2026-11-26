@@ -1,9 +1,10 @@
-﻿
+﻿using Microsoft.Data.SqlClient;
 using Inventario.Api.Data;
 using Inventario.Api.DTOs;
 using Inventario.Api.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Inventario.Api.Authorization;
 
 namespace Inventario.Api.Controllers
 {
@@ -17,197 +18,308 @@ namespace Inventario.Api.Controllers
         {
             _context = context;
         }
+        private const decimal LimiteCantidad = 1000000000000000m;
+        private const decimal LimiteDinero = 10000000000000000m;
 
-        [HttpPost]
-        public async Task<IActionResult> CrearVenta(
-            [FromBody] CrearVentaDto datos)
+        private async Task<IActionResult> EjecutarEscrituraVenta(
+            Func<Task<IActionResult>> operacion)
         {
-            if (datos == null)
-                return BadRequest("Debes proporcionar los datos de la venta.");
-
-            if (datos.ClienteId.HasValue && datos.ClienteId.Value <= 0)
-                return BadRequest("El ID del cliente debe ser mayor que cero.");
-
-            string? nombreCliente = null;
-
-            if (datos.ClienteId.HasValue)
-            {
-                var cliente = await _context.Clientes
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(c => c.Id == datos.ClienteId.Value);
-
-                if (cliente == null)
-                    return NotFound("Cliente no encontrado.");
-
-                if (!cliente.Activo)
-                    return Conflict("No se pueden registrar ventas a un cliente inactivo.");
-
-                nombreCliente = cliente.NombreRazonSocial;
-            }
-
-            var numeroComprobante = datos.NumeroComprobante?.Trim();
-
-            if (numeroComprobante?.Length > 100)
-                return BadRequest("El número de comprobante no puede superar los 100 caracteres.");
-
-            var venta = new Venta
-            {
-                ClienteId = datos.ClienteId,
-                FechaVenta = DateTime.UtcNow,
-                NumeroComprobante = string.IsNullOrWhiteSpace(numeroComprobante)
-                    ? null
-                    : numeroComprobante,
-                Estado = "Borrador",
-                Total = 0m
-            };
-
-            _context.Ventas.Add(venta);
-
-            await _context.SaveChangesAsync();
-
-            return StatusCode(201, new
-            {
-                mensaje = "Venta registrada correctamente.",
-                venta.Id,
-                venta.ClienteId,
-                Cliente = nombreCliente ?? "Consumidor final",
-                venta.FechaVenta,
-                venta.NumeroComprobante,
-                venta.Estado,
-                venta.Total
-            });
-        }
-
-        [HttpPost("{ventaId:int}/detalles")]
-        public async Task<IActionResult> AgregarDetalleVenta(
-            int ventaId,
-            [FromBody] AgregarDetalleVentaDto datos)
-        {
-            if (ventaId <= 0)
-                return BadRequest("El ID de la venta debe ser mayor que cero.");
-
-            if (datos == null)
-                return BadRequest("Debes proporcionar los datos del producto.");
-
-            if (datos.ProductoId <= 0)
-                return BadRequest("El ID del producto debe ser mayor que cero.");
-
-            if (datos.Cantidad <= 0)
-                return BadRequest("La cantidad debe ser mayor que cero.");
-
-            if (datos.PrecioUnitario <= 0)
-                return BadRequest("El precio unitario debe ser mayor que cero.");
-
-            if (decimal.Round(datos.Cantidad, 3) != datos.Cantidad)
-                return BadRequest("La cantidad no puede superar tres decimales.");
-
-            if (decimal.Round(datos.PrecioUnitario, 2) != datos.PrecioUnitario)
-                return BadRequest("El precio unitario no puede superar dos decimales.");
-
-            const decimal limiteCantidad = 1000000000000000m;
-            const decimal limiteDinero = 10000000000000000m;
-
-            if (datos.Cantidad >= limiteCantidad ||
-                datos.PrecioUnitario >= limiteDinero)
-                return BadRequest("Los valores superan los límites permitidos.");
-
-            var venta = await _context.Ventas.FindAsync(ventaId);
-
-            if (venta == null)
-                return NotFound("Venta no encontrada.");
-
-            if (venta.Estado != "Borrador")
-                return Conflict("Solo se pueden agregar productos a ventas en estado Borrador.");
-
-            var producto = await _context.Productos
-                .AsNoTracking()
-                .Where(p => p.Id == datos.ProductoId)
-                .Select(p => new
-                {
-                    p.Id,
-                    p.Nombre,
-                    p.Activo,
-                    p.UnidadMedidaId,
-                    PermiteFracciones = p.UnidadMedida != null &&
-                                       p.UnidadMedida.PermiteFracciones
-                })
-                .FirstOrDefaultAsync();
-
-            if (producto == null)
-                return NotFound("Producto no encontrado.");
-
-            if (!producto.Activo)
-                return Conflict("No se puede vender un producto inactivo.");
-
-            if (datos.Cantidad != decimal.Truncate(datos.Cantidad))
-            {
-                if (!producto.UnidadMedidaId.HasValue)
-                    return BadRequest("El producto no tiene una unidad de medida asignada para cantidades decimales.");
-
-                if (!producto.PermiteFracciones)
-                    return BadRequest("La unidad de medida del producto no permite cantidades decimales.");
-            }
-
-            var existeDetalle = await _context.DetallesVenta
-                .AnyAsync(d =>
-                    d.VentaId == ventaId &&
-                    d.ProductoId == datos.ProductoId);
-
-            if (existeDetalle)
-                return Conflict("El producto ya está agregado a esta venta.");
-
-            decimal subtotal;
-            decimal nuevoTotal;
-
             try
             {
-                subtotal = decimal.Round(
-                    checked(datos.Cantidad * datos.PrecioUnitario),
-                    2,
-                    MidpointRounding.AwayFromZero);
+                await using var transaccion = await _context.Database
+                    .BeginTransactionAsync(
+                        System.Data.IsolationLevel.Serializable);
 
-                if (subtotal >= limiteDinero)
-                    return BadRequest("El subtotal supera el límite permitido.");
+                var resultado = await operacion();
 
-                nuevoTotal = checked(venta.Total + subtotal);
+                if (resultado is ObjectResult
+                    { StatusCode: >= 200 and < 300 } ||
+                    resultado is StatusCodeResult
+                    { StatusCode: >= 200 and < 300 })
+                {
+                    await transaccion.CommitAsync();
+                }
 
-                if (nuevoTotal >= limiteDinero)
-                    return BadRequest("El total de la venta supera el límite permitido.");
+                return resultado;
             }
             catch (OverflowException)
             {
-                return BadRequest("Los valores numéricos superan los límites permitidos.");
+                return BadRequest(
+                    "Los valores numéricos superan los límites permitidos.");
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return Conflict(
+                    "La venta fue modificada por otra operación.");
+            }
+            catch (DbUpdateException ex) when (
+                ex.InnerException is SqlException sqlEx &&
+                (sqlEx.Number == 2601 || sqlEx.Number == 2627))
+            {
+                return Conflict(
+                    "Ya existe un registro con esos datos.");
+            }
+            catch (DbUpdateException ex) when (
+                ex.InnerException is SqlException sqlEx &&
+                sqlEx.Number == 547)
+            {
+                return Conflict(
+                    "La operación no puede realizarse debido a registros relacionados.");
+            }
+            catch (DbUpdateException ex) when (
+                ex.InnerException is SqlException sqlEx &&
+                sqlEx.Number == 1205)
+            {
+                return Conflict(
+                    "Existe una operación simultánea. Intente nuevamente.");
+            }
+            catch (SqlException ex) when (ex.Number == 1205)
+            {
+                return Conflict(
+                    "Existe una operación simultánea. Intente nuevamente.");
+            }
+        }
+
+        private IActionResult? ValidarImportesDetalle(
+            decimal cantidad,
+            decimal precioUnitario,
+            out decimal subtotal)
+        {
+            subtotal = 0m;
+
+            if (cantidad <= 0)
+                return BadRequest(
+                    "La cantidad debe ser mayor que cero.");
+
+            if (precioUnitario <= 0)
+                return BadRequest(
+                    "El precio unitario debe ser mayor que cero.");
+
+            if (decimal.Round(cantidad, 3) != cantidad)
+                return BadRequest(
+                    "La cantidad no puede superar tres decimales.");
+
+            if (decimal.Round(precioUnitario, 2) != precioUnitario)
+                return BadRequest(
+                    "El precio unitario no puede superar dos decimales.");
+
+            if (cantidad >= LimiteCantidad ||
+                precioUnitario >= LimiteDinero)
+            {
+                return BadRequest(
+                    "Los valores superan los límites permitidos.");
             }
 
-            var detalle = new DetalleVenta
+            subtotal = decimal.Round(
+                checked(cantidad * precioUnitario),
+                2,
+                MidpointRounding.AwayFromZero);
+
+            if (subtotal <= 0 || subtotal >= LimiteDinero)
+                return BadRequest(
+                    "El subtotal está fuera de los límites permitidos.");
+
+            return null;
+        }
+
+        private async Task<(Producto? Producto, IActionResult? Error)>
+            ValidarProductoVenta(int productoId, decimal cantidad)
+        {
+            var producto = await _context.Productos
+                .AsNoTracking()
+                .Include(p => p.UnidadMedida)
+                .FirstOrDefaultAsync(p => p.Id == productoId);
+
+            if (producto == null)
+                return (null, NotFound(
+                    "Producto no encontrado."));
+
+            if (!producto.Activo)
+                return (null, Conflict(
+                    "No se puede vender un producto inactivo."));
+
+            if (cantidad != decimal.Truncate(cantidad))
             {
-                VentaId = ventaId,
-                ProductoId = datos.ProductoId,
-                Cantidad = datos.Cantidad,
-                PrecioUnitario = datos.PrecioUnitario,
-                Subtotal = subtotal
-            };
+                if (producto.UnidadMedida == null)
+                    return (null, BadRequest(
+                        "El producto no tiene una unidad de medida asignada para cantidades decimales."));
 
-            _context.DetallesVenta.Add(detalle);
+                if (!producto.UnidadMedida.PermiteFracciones)
+                    return (null, BadRequest(
+                        "La unidad de medida del producto no permite cantidades decimales."));
+            }
 
-            venta.Total = nuevoTotal;
+            return (producto, null);
+        }
 
-            await _context.SaveChangesAsync();
-
-            return StatusCode(201, new
+        [Permiso(Permisos.VentasGestionar)]
+        [HttpPost]
+        public async Task<IActionResult> CrearVenta(
+    [FromBody] CrearVentaDto datos)
+        {
+            return await EjecutarEscrituraVenta(async () =>
             {
-                mensaje = "Producto agregado correctamente a la venta.",
-                detalle.Id,
-                detalle.VentaId,
-                detalle.ProductoId,
-                producto.Nombre,
-                detalle.Cantidad,
-                detalle.PrecioUnitario,
-                detalle.Subtotal,
-                totalVenta = venta.Total
+                if (datos == null)
+                    return BadRequest(
+                        "Debes proporcionar los datos de la venta.");
+
+                if (datos.ClienteId.HasValue &&
+                    datos.ClienteId.Value <= 0)
+                {
+                    return BadRequest(
+                        "El ID del cliente debe ser mayor que cero.");
+                }
+
+                string? nombreCliente = null;
+
+                if (datos.ClienteId.HasValue)
+                {
+                    var cliente = await _context.Clientes
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(c =>
+                            c.Id == datos.ClienteId.Value);
+
+                    if (cliente == null)
+                        return NotFound("Cliente no encontrado.");
+
+                    if (!cliente.Activo)
+                        return Conflict(
+                            "No se pueden registrar ventas a un cliente inactivo.");
+
+                    nombreCliente = cliente.NombreRazonSocial;
+                }
+
+                var numeroComprobante = datos.NumeroComprobante?.Trim();
+
+                if (numeroComprobante?.Length > 100)
+                    return BadRequest(
+                        "El número de comprobante no puede superar los 100 caracteres.");
+
+                var venta = new Venta
+                {
+                    ClienteId = datos.ClienteId,
+                    FechaVenta = DateTime.UtcNow,
+                    NumeroComprobante =
+                        string.IsNullOrWhiteSpace(numeroComprobante)
+                            ? null
+                            : numeroComprobante,
+                    Estado = "Borrador",
+                    Total = 0m
+                };
+
+                _context.Ventas.Add(venta);
+
+                await _context.SaveChangesAsync();
+
+                return StatusCode(201, new
+                {
+                    mensaje = "Venta registrada correctamente.",
+                    venta.Id,
+                    venta.ClienteId,
+                    Cliente = nombreCliente ?? "Consumidor final",
+                    venta.FechaVenta,
+                    venta.NumeroComprobante,
+                    venta.Estado,
+                    venta.Total
+                });
             });
         }
 
+        [Permiso(Permisos.VentasGestionar)]
+        [HttpPost("{ventaId:int}/detalles")]
+        public async Task<IActionResult> AgregarDetalleVenta(
+    int ventaId,
+    [FromBody] AgregarDetalleVentaDto datos)
+        {
+            return await EjecutarEscrituraVenta(async () =>
+            {
+                if (ventaId <= 0)
+                    return BadRequest(
+                        "El ID de la venta debe ser mayor que cero.");
+
+                if (datos == null)
+                    return BadRequest(
+                        "Debes proporcionar los datos del producto.");
+
+                if (datos.ProductoId <= 0)
+                    return BadRequest(
+                        "El ID del producto debe ser mayor que cero.");
+
+                var errorImportes = ValidarImportesDetalle(
+                    datos.Cantidad,
+                    datos.PrecioUnitario,
+                    out var subtotal);
+
+                if (errorImportes != null)
+                    return errorImportes;
+
+                var venta = await _context.Ventas
+                    .FindAsync(ventaId);
+
+                if (venta == null)
+                    return NotFound("Venta no encontrada.");
+
+                if (venta.Estado != "Borrador")
+                    return Conflict(
+                        "Solo se pueden agregar productos a ventas en estado Borrador.");
+
+                var (producto, errorProducto) =
+                    await ValidarProductoVenta(
+                        datos.ProductoId,
+                        datos.Cantidad);
+
+                if (errorProducto != null)
+                    return errorProducto;
+
+                if (producto == null)
+                    return NotFound("Producto no encontrado.");
+
+                var existeDetalle = await _context.DetallesVenta
+                    .AnyAsync(d =>
+                        d.VentaId == ventaId &&
+                        d.ProductoId == datos.ProductoId);
+
+                if (existeDetalle)
+                    return Conflict(
+                        "El producto ya está agregado a esta venta.");
+
+                var nuevoTotal = checked(venta.Total + subtotal);
+
+                if (nuevoTotal >= LimiteDinero)
+                    return BadRequest(
+                        "El total de la venta supera el límite permitido.");
+
+                var detalle = new DetalleVenta
+                {
+                    VentaId = ventaId,
+                    ProductoId = datos.ProductoId,
+                    Cantidad = datos.Cantidad,
+                    PrecioUnitario = datos.PrecioUnitario,
+                    Subtotal = subtotal
+                };
+
+                _context.DetallesVenta.Add(detalle);
+
+                venta.Total = nuevoTotal;
+
+                await _context.SaveChangesAsync();
+
+                return StatusCode(201, new
+                {
+                    mensaje = "Producto agregado correctamente a la venta.",
+                    detalle.Id,
+                    detalle.VentaId,
+                    detalle.ProductoId,
+                    producto.Nombre,
+                    detalle.Cantidad,
+                    detalle.PrecioUnitario,
+                    detalle.Subtotal,
+                    totalVenta = venta.Total
+                });
+            });
+        }
+
+        [Permiso(Permisos.VentasVer)]
         [HttpGet("{id:int}")]
         public async Task<IActionResult> ObtenerVentaPorId(int id)
         {
@@ -262,6 +374,7 @@ namespace Inventario.Api.Controllers
             });
         }
 
+        [Permiso(Permisos.VentasVer)]
         [HttpGet]
         public async Task<IActionResult> ObtenerVentas(
             [FromQuery] int? clienteId,
@@ -316,143 +429,124 @@ namespace Inventario.Api.Controllers
             return Ok(ventas);
         }
 
+        [Permiso(Permisos.VentasGestionar)]
         [HttpPatch("{id:int}/confirmar")]
         public async Task<IActionResult> ConfirmarVenta(int id)
         {
-            if (id <= 0)
-                return BadRequest("El ID de la venta debe ser mayor que cero.");
-
-            await using var transaccion =
-                await _context.Database.BeginTransactionAsync();
-
-            var filasActualizadas = await _context.Ventas
-                .Where(v => v.Id == id && v.Estado == "Borrador")
-                .ExecuteUpdateAsync(cambios =>
-                    cambios.SetProperty(v => v.Estado, "Confirmada"));
-
-            if (filasActualizadas == 0)
+            return await EjecutarEscrituraVenta(async () =>
             {
-                var ventaExistente = await _context.Ventas
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(v => v.Id == id);
+                if (id <= 0)
+                    return BadRequest(
+                        "El ID de la venta debe ser mayor que cero.");
 
-                if (ventaExistente == null)
+                var venta = await _context.Ventas.FindAsync(id);
+
+                if (venta == null)
                     return NotFound("Venta no encontrada.");
 
-                return Conflict("Solo se pueden confirmar ventas en estado Borrador.");
-            }
+                if (venta.Estado != "Borrador")
+                    return Conflict(
+                        "Solo se pueden confirmar ventas en estado Borrador.");
 
-            var clienteId = await _context.Ventas
-                .AsNoTracking()
-                .Where(v => v.Id == id)
-                .Select(v => v.ClienteId)
-                .SingleAsync();
-
-            if (clienteId.HasValue)
-            {
-                var clienteActivo = await _context.Clientes
-                    .AsNoTracking()
-                    .AnyAsync(c =>
-                        c.Id == clienteId.Value &&
-                        c.Activo);
-
-                if (!clienteActivo)
-                    return Conflict("No se puede confirmar una venta de un cliente inactivo.");
-            }
-
-            var detalles = await _context.DetallesVenta
-                .AsNoTracking()
-                .Where(d => d.VentaId == id)
-                .Select(d => new
+                if (venta.ClienteId.HasValue)
                 {
-                    d.ProductoId,
-                    d.Cantidad
-                })
-                .ToListAsync();
+                    var clienteActivo = await _context.Clientes
+                        .AnyAsync(c =>
+                            c.Id == venta.ClienteId.Value &&
+                            c.Activo);
 
-            if (detalles.Count == 0)
-                return Conflict("No se puede confirmar una venta sin productos.");
-
-            const decimal stockMaximo = 999999999999999.999m;
-
-            foreach (var detalle in detalles)
-            {
-                if (detalle.Cantidad <= 0 ||
-                    detalle.Cantidad > stockMaximo ||
-                    decimal.Round(detalle.Cantidad, 3) != detalle.Cantidad)
-                {
-                    return Conflict("La venta contiene una cantidad inválida.");
+                    if (!clienteActivo)
+                        return Conflict(
+                            "No se puede confirmar una venta de un cliente inactivo.");
                 }
 
-                var producto = await _context.Productos
+                var detalles = await _context.DetallesVenta
                     .AsNoTracking()
-                    .Where(p => p.Id == detalle.ProductoId)
-                    .Select(p => new
-                    {
-                        p.Nombre,
-                        p.Activo,
-                        p.UnidadMedidaId,
-                        PermiteFracciones = p.UnidadMedida != null &&
-                                           p.UnidadMedida.PermiteFracciones
-                    })
-                    .FirstOrDefaultAsync();
+                    .Where(d => d.VentaId == id)
+                    .OrderBy(d => d.ProductoId)
+                    .ToListAsync();
 
-                if (producto == null)
-                    return NotFound("Uno de los productos de la venta no existe.");
+                if (detalles.Count == 0)
+                    return Conflict(
+                        "No se puede confirmar una venta sin productos.");
 
-                if (!producto.Activo)
-                    return Conflict("No se puede confirmar una venta con productos inactivos.");
+                var totalDetalles = detalles.Sum(d => d.Subtotal);
 
-                if (detalle.Cantidad != decimal.Truncate(detalle.Cantidad))
-                {
-                    if (!producto.UnidadMedidaId.HasValue)
-                        return Conflict("Un producto no tiene unidad de medida para cantidades decimales.");
-
-                    if (!producto.PermiteFracciones)
-                        return Conflict("La unidad de medida de un producto no permite cantidades decimales.");
-                }
-
-                var stockActualizado = await _context.Productos
-                    .Where(p =>
-                        p.Id == detalle.ProductoId &&
-                        p.Activo &&
-                        p.Stock >= detalle.Cantidad)
-                    .ExecuteUpdateAsync(cambios =>
-                        cambios.SetProperty(
-                            p => p.Stock,
-                            p => p.Stock - detalle.Cantidad));
-
-                if (stockActualizado == 0)
+                if (totalDetalles != venta.Total ||
+                    venta.Total <= 0 ||
+                    venta.Total >= LimiteDinero)
                 {
                     return Conflict(
-                        $"Stock insuficiente o producto no disponible: {producto.Nombre}.");
+                        "El total de la venta es inválido o no coincide con sus detalles.");
                 }
 
-                var movimiento = new MovimientoStock
+                foreach (var detalle in detalles)
                 {
-                    ProductoId = detalle.ProductoId,
-                    Tipo = TipoMovimiento.Salida,
-                    Cantidad = detalle.Cantidad,
-                    Observacion = $"Salida por venta #{id}",
-                    FechaMovimiento = DateTime.UtcNow
-                };
+                    var errorImportes = ValidarImportesDetalle(
+                        detalle.Cantidad,
+                        detalle.PrecioUnitario,
+                        out var subtotalCalculado);
 
-                _context.MovimientosStock.Add(movimiento);
-            }
+                    if (errorImportes != null)
+                        return errorImportes;
 
-            await _context.SaveChangesAsync();
+                    if (subtotalCalculado != detalle.Subtotal)
+                        return Conflict(
+                            "La venta contiene un subtotal incorrecto.");
 
-            await transaccion.CommitAsync();
+                    var (producto, errorProducto) =
+                        await ValidarProductoVenta(
+                            detalle.ProductoId,
+                            detalle.Cantidad);
 
-            return Ok(new
-            {
-                mensaje = "Venta confirmada correctamente.",
-                ventaId = id,
-                estado = "Confirmada",
-                movimientosRegistrados = detalles.Count
+                    if (errorProducto != null)
+                        return errorProducto;
+
+                    if (producto == null)
+                        return NotFound(
+                            "Uno de los productos de la venta no existe.");
+
+                    var stockActualizado = await _context.Productos
+                        .Where(p =>
+                            p.Id == detalle.ProductoId &&
+                            p.Activo &&
+                            p.Stock >= detalle.Cantidad)
+                        .ExecuteUpdateAsync(cambios =>
+                            cambios.SetProperty(
+                                p => p.Stock,
+                                p => p.Stock - detalle.Cantidad));
+
+                    if (stockActualizado == 0)
+                        return Conflict(
+                            $"Stock insuficiente o producto no disponible: {producto.Nombre}.");
+
+                    var movimiento = new MovimientoStock
+                    {
+                        ProductoId = detalle.ProductoId,
+                        Tipo = TipoMovimiento.Salida,
+                        Cantidad = detalle.Cantidad,
+                        Observacion = $"Salida por venta #{id}",
+                        FechaMovimiento = DateTime.UtcNow
+                    };
+
+                    _context.MovimientosStock.Add(movimiento);
+                }
+
+                venta.Estado = "Confirmada";
+
+                await _context.SaveChangesAsync();
+
+                return Ok(new
+                {
+                    mensaje = "Venta confirmada correctamente.",
+                    ventaId = id,
+                    estado = "Confirmada",
+                    movimientosRegistrados = detalles.Count
+                });
             });
         }
 
+        [Permiso(Permisos.VentasGestionar)]
         [HttpPatch("{id:int}/anular")]
         public async Task<IActionResult> AnularVenta(int id)
         {
@@ -490,196 +584,146 @@ namespace Inventario.Api.Controllers
             });
         }
 
+        [Permiso(Permisos.VentasGestionar)]
         [HttpDelete("{ventaId:int}/detalles/{detalleId:int}")]
         public async Task<IActionResult> EliminarDetalleVenta(
-            int ventaId, int detalleId)
+    int ventaId,
+    int detalleId)
         {
-            if (ventaId <= 0 || detalleId <= 0)
-                return BadRequest("Los ID deben ser mayores que cero.");
-
-            await using var transaccion =
-                await _context.Database.BeginTransactionAsync();
-
-            var venta = await _context.Ventas
-                .AsNoTracking()
-                .FirstOrDefaultAsync(v => v.Id == ventaId);
-
-            if (venta == null)
-                return NotFound("Venta no encontrada.");
-
-            if (venta.Estado != "Borrador")
-                return Conflict(
-                    "Solo se pueden eliminar productos de ventas en estado Borrador.");
-
-            var detalle = await _context.DetallesVenta
-                .FirstOrDefaultAsync(d =>
-                    d.Id == detalleId &&
-                    d.VentaId == ventaId);
-
-            if (detalle == null)
-                return NotFound("El producto no existe en esta venta.");
-
-            var filasActualizadas = await _context.Ventas
-                .Where(v =>
-                    v.Id == ventaId &&
-                    v.Estado == "Borrador" &&
-                    v.Total >= detalle.Subtotal)
-                .ExecuteUpdateAsync(cambios =>
-                    cambios.SetProperty(
-                        v => v.Total,
-                        v => v.Total - detalle.Subtotal));
-
-            if (filasActualizadas == 0)
-                return Conflict("No se pudo actualizar el total de la venta.");
-
-            _context.DetallesVenta.Remove(detalle);
-
-            await _context.SaveChangesAsync();
-
-            var totalActual = await _context.Ventas
-                .AsNoTracking()
-                .Where(v => v.Id == ventaId)
-                .Select(v => v.Total)
-                .SingleAsync();
-
-            await transaccion.CommitAsync();
-
-            return Ok(new
+            return await EjecutarEscrituraVenta(async () =>
             {
-                mensaje = "Producto eliminado correctamente de la venta.",
-                ventaId,
-                detalleId,
-                totalVenta = totalActual
+                if (ventaId <= 0 || detalleId <= 0)
+                    return BadRequest(
+                        "Los ID deben ser mayores que cero.");
+
+                var venta = await _context.Ventas
+                    .FindAsync(ventaId);
+
+                if (venta == null)
+                    return NotFound("Venta no encontrada.");
+
+                if (venta.Estado != "Borrador")
+                    return Conflict(
+                        "Solo se pueden eliminar productos de ventas en estado Borrador.");
+
+                var detalle = await _context.DetallesVenta
+                    .FirstOrDefaultAsync(d =>
+                        d.Id == detalleId &&
+                        d.VentaId == ventaId);
+
+                if (detalle == null)
+                    return NotFound(
+                        "El producto no existe en esta venta.");
+
+                if (detalle.Subtotal < 0 ||
+                    venta.Total < detalle.Subtotal)
+                {
+                    return Conflict(
+                        "El total de la venta es inconsistente.");
+                }
+
+                venta.Total -= detalle.Subtotal;
+
+                _context.DetallesVenta.Remove(detalle);
+
+                await _context.SaveChangesAsync();
+
+                return Ok(new
+                {
+                    mensaje = "Producto eliminado correctamente de la venta.",
+                    ventaId,
+                    detalleId,
+                    totalVenta = venta.Total
+                });
             });
         }
 
+        [Permiso(Permisos.VentasGestionar)]
         [HttpPut("{ventaId:int}/detalles/{detalleId:int}")]
         public async Task<IActionResult> ActualizarDetalleVenta(
-            int ventaId,
-            int detalleId,
-            [FromBody] ActualizarDetalleVentaDto datos)
+    int ventaId,
+    int detalleId,
+    [FromBody] ActualizarDetalleVentaDto datos)
         {
-            if (ventaId <= 0 || detalleId <= 0)
-                return BadRequest("Los ID deben ser mayores que cero.");
-
-            if (datos == null)
-                return BadRequest("Debes proporcionar los datos del detalle.");
-
-            if (datos.Cantidad <= 0)
-                return BadRequest("La cantidad debe ser mayor que cero.");
-
-            if (datos.PrecioUnitario <= 0)
-                return BadRequest("El precio unitario debe ser mayor que cero.");
-
-            if (decimal.Round(datos.Cantidad, 3) != datos.Cantidad)
-                return BadRequest("La cantidad no puede superar tres decimales.");
-
-            if (decimal.Round(datos.PrecioUnitario, 2) != datos.PrecioUnitario)
-                return BadRequest("El precio unitario no puede superar dos decimales.");
-
-            const decimal limiteCantidad = 1000000000000000m;
-            const decimal limiteDinero = 10000000000000000m;
-
-            if (datos.Cantidad >= limiteCantidad ||
-                datos.PrecioUnitario >= limiteDinero)
-                return BadRequest("Los valores superan los límites permitidos.");
-
-            decimal nuevoSubtotal;
-
-            try
+            return await EjecutarEscrituraVenta(async () =>
             {
-                nuevoSubtotal = decimal.Round(
-                    checked(datos.Cantidad * datos.PrecioUnitario),
-                    2,
-                    MidpointRounding.AwayFromZero);
-            }
-            catch (OverflowException)
-            {
-                return BadRequest("Los valores numéricos superan los límites permitidos.");
-            }
+                if (ventaId <= 0 || detalleId <= 0)
+                    return BadRequest(
+                        "Los ID deben ser mayores que cero.");
 
-            if (nuevoSubtotal >= limiteDinero)
-                return BadRequest("El subtotal supera el límite permitido.");
+                if (datos == null)
+                    return BadRequest(
+                        "Debes proporcionar los datos del detalle.");
 
-            await using var transaccion =
-                await _context.Database.BeginTransactionAsync();
+                var errorImportes = ValidarImportesDetalle(
+                    datos.Cantidad,
+                    datos.PrecioUnitario,
+                    out var nuevoSubtotal);
 
-            var venta = await _context.Ventas
-                .AsNoTracking()
-                .FirstOrDefaultAsync(v => v.Id == ventaId);
+                if (errorImportes != null)
+                    return errorImportes;
 
-            if (venta == null)
-                return NotFound("Venta no encontrada.");
+                var venta = await _context.Ventas
+                    .FindAsync(ventaId);
 
-            if (venta.Estado != "Borrador")
-                return Conflict("Solo se pueden modificar ventas en estado Borrador.");
+                if (venta == null)
+                    return NotFound("Venta no encontrada.");
 
-            var detalle = await _context.DetallesVenta
-                .FirstOrDefaultAsync(d =>
-                    d.Id == detalleId &&
-                    d.VentaId == ventaId);
+                if (venta.Estado != "Borrador")
+                    return Conflict(
+                        "Solo se pueden modificar ventas en estado Borrador.");
 
-            if (detalle == null)
-                return NotFound("El detalle no existe en esta venta.");
+                var detalle = await _context.DetallesVenta
+                    .FirstOrDefaultAsync(d =>
+                        d.Id == detalleId &&
+                        d.VentaId == ventaId);
 
-            if (datos.Cantidad != decimal.Truncate(datos.Cantidad))
-            {
-                var permiteFracciones = await _context.Productos
-                    .AsNoTracking()
-                    .Where(p => p.Id == detalle.ProductoId)
-                    .Select(p =>
-                        p.UnidadMedida != null &&
-                        p.UnidadMedida.PermiteFracciones)
-                    .FirstOrDefaultAsync();
+                if (detalle == null)
+                    return NotFound(
+                        "El detalle no existe en esta venta.");
 
-                if (!permiteFracciones)
-                    return BadRequest("La unidad de medida del producto no permite cantidades decimales.");
-            }
+                var (_, errorProducto) =
+                    await ValidarProductoVenta(
+                        detalle.ProductoId,
+                        datos.Cantidad);
 
-            var subtotalAnterior = detalle.Subtotal;
+                if (errorProducto != null)
+                    return errorProducto;
 
-            var diferencia = nuevoSubtotal - subtotalAnterior;
+                if (detalle.Subtotal < 0 ||
+                    venta.Total < detalle.Subtotal)
+                {
+                    return Conflict(
+                        "El total de la venta es inconsistente.");
+                }
 
-            var filasActualizadas = await _context.Ventas
-                .Where(v =>
-                    v.Id == ventaId &&
-                    v.Estado == "Borrador" &&
-                    v.Total >= subtotalAnterior &&
-                    (diferencia <= 0 || v.Total < limiteDinero - diferencia))
-                .ExecuteUpdateAsync(cambios =>
-                    cambios.SetProperty(
-                        v => v.Total,
-                        v => v.Total - subtotalAnterior + nuevoSubtotal));
+                var nuevoTotal = checked(
+                    venta.Total - detalle.Subtotal + nuevoSubtotal);
 
-            if (filasActualizadas == 0)
-                return Conflict("No se pudo actualizar el total de la venta.");
+                if (nuevoTotal >= LimiteDinero)
+                    return BadRequest(
+                        "El total de la venta supera el límite permitido.");
 
-            detalle.Cantidad = datos.Cantidad;
-            detalle.PrecioUnitario = datos.PrecioUnitario;
-            detalle.Subtotal = nuevoSubtotal;
+                detalle.Cantidad = datos.Cantidad;
+                detalle.PrecioUnitario = datos.PrecioUnitario;
+                detalle.Subtotal = nuevoSubtotal;
 
-            await _context.SaveChangesAsync();
+                venta.Total = nuevoTotal;
 
-            var totalActual = await _context.Ventas
-                .AsNoTracking()
-                .Where(v => v.Id == ventaId)
-                .Select(v => v.Total)
-                .SingleAsync();
+                await _context.SaveChangesAsync();
 
-            await transaccion.CommitAsync();
-
-            return Ok(new
-            {
-                mensaje = "Detalle de venta actualizado correctamente.",
-                detalle.Id,
-                detalle.VentaId,
-                detalle.ProductoId,
-                detalle.Cantidad,
-                detalle.PrecioUnitario,
-                detalle.Subtotal,
-                totalVenta = totalActual
+                return Ok(new
+                {
+                    mensaje = "Detalle de venta actualizado correctamente.",
+                    detalle.Id,
+                    detalle.VentaId,
+                    detalle.ProductoId,
+                    detalle.Cantidad,
+                    detalle.PrecioUnitario,
+                    detalle.Subtotal,
+                    totalVenta = venta.Total
+                });
             });
         }
-
     }
 }
