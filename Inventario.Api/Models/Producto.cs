@@ -11,16 +11,29 @@
         public string? CodigoSku { get; set; }
 
         public decimal Precio { get; set; }
+ 
+        public decimal Stock { get; set; }
 
-        public int Stock { get; set; }
-
-        public int StockMinimo { get; set; } = 5;
+        public decimal StockMinimo { get; set; } = 5m;
 
         public DateTime FechaCreacion { get; set; } = DateTime.UtcNow;
+
+        public bool Activo { get; set; } = true;
+
 
         public int? CategoriaId { get; set; }
 
         public Categoria? Categoria { get; set; }
+
+        public int? UnidadMedidaId { get; set; }
+
+        public UnidadMedida? UnidadMedida { get; set; }
+
+        public int? MarcaId { get; set; }
+
+        public Marca? Marca { get; set; }
+
+
     }
 }
 

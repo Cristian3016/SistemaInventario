@@ -1,125 +1,27 @@
 
-@baseUrl = https://localhost:7076
-
-### PRODUCTOS
-
-### GET Productos
-GET {{baseUrl}}/api/productos
-Accept: application/json
-
-
-### POST Productos
-POST {{baseUrl}}/api/productos
-Content-Type: application/json
-
-{
-  "nombre": "Monitor Samsung 24 pulgadas",
-  "descripcion": "Monitor LED Full HD de 24 pulgadas",
-  "codigoSku": "MON-001",
-  "precio": 150000,
-  "stock": 10,
-  "stockMinimo": 3,
-  "categoriaId": 1
-}
-
-###
-
-
-@productoId = 1
-
-### PUT Productos
-PUT {{baseUrl}}/api/productos/{{productoId}}
-Content-Type: application/json
-
-{
-  "nombre": "Monitor Samsung",
-  "descripcion": "Monitor LED de 24 pulgadas Full HD",
-  "precio": 110000,
-  "stock": 12
-}
-
-### PATCH Productos(Stock)
-PATCH {{baseUrl}}/api/productos/{{productoId}}
-Content-Type: application/json
-
-{
-  "stock": 25
-}
-
-### DELETE producto
-DELETE {{baseUrl}}/api/productos/3
-Accept: application/json
 
 
 
 
 
-### CATEGORIA
 
 
 
 
-### GET 
-GET {{baseUrl}}/api/categorias
-Accept: application/json
 
-### POST 
-POST {{baseUrl}}/api/categorias
-Content-Type: application/json
 
-{
-  "nombre": "Monitores",
-  "descripcion": "Monitores LED, LCD y gaming"
-}
 
-### Periféricos
-POST {{baseUrl}}/api/categorias
-Content-Type: application/json
 
-{
-  "nombre": "Periféricos",
-  "descripcion": "Teclados, mouse, auriculares y accesorios"
-}
 
-### Crear categoría Componentes
-POST {{baseUrl}}/api/categorias
-Content-Type: application/json
 
-{
-  "nombre": "Componentes",
-  "descripcion": "Procesadores, memorias RAM y placas de video"
-}
 
-### Crear categoría Almacenamiento
-POST {{baseUrl}}/api/categorias
-Content-Type: application/json
 
-{
-  "nombre": "Almacenamiento",
-  "descripcion": "Discos SSD, HDD y unidades de almacenamiento"
-}
 
-### PUT Categoria
-PUT {{baseUrl}}/api/categorias/2
-Content-Type: application/json
 
-{
-  "nombre": "Periféricos",
-  "descripcion": "Teclados, mouse, auriculares, webcams y accesorios para computadoras"
-}
 
-### POST
-POST {{baseUrl}}/api/categorias
-Content-Type: application/json
 
-{
-  "nombre": "Categoria Prueba DELETE",
-  "descripcion": "Categoria temporal para probar eliminacion"
-}
 
-### DELETE Categoria
-DELETE {{baseUrl}}/api/categorias/5
-Accept: application/json
+
 
 
 
