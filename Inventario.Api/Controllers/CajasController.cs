@@ -1,11 +1,11 @@
-﻿
-using Inventario.Api.Data;
+﻿using Inventario.Api.Data;
 using Inventario.Api.DTOs;
 using Inventario.Api.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Inventario.Api.Authorization;
+using Inventario.Api.Services;
 
 namespace Inventario.Api.Controllers
 {
@@ -14,10 +14,14 @@ namespace Inventario.Api.Controllers
     public class CajasController : ControllerBase
     {
         private readonly InventarioDbContext _context;
+        private readonly IAuditoriaService _auditoriaService;
 
-        public CajasController(InventarioDbContext context)
+        public CajasController(
+            InventarioDbContext context,
+            IAuditoriaService auditoriaService)
         {
             _context = context;
+            _auditoriaService = auditoriaService;
         }
 
         [Permiso(Permisos.CajaGestionar)]
@@ -25,6 +29,12 @@ namespace Inventario.Api.Controllers
         public async Task<IActionResult> AbrirCaja(
             [FromBody] AbrirCajaDto datos)
         {
+            if (!int.TryParse(User.FindFirst("sub")?.Value, out var usuarioId) ||
+                usuarioId <= 0)
+            {
+                return Unauthorized();
+            }
+
             if (datos == null)
                 return BadRequest("Debes proporcionar los datos de apertura.");
 
@@ -44,27 +54,53 @@ namespace Inventario.Api.Controllers
             if (observaciones?.Length > 500)
                 return BadRequest("Las observaciones no pueden superar los 500 caracteres.");
 
-            var existeCajaAbierta = await _context.Cajas
-                .AnyAsync(c => c.Estado == "Abierta");
-
-            if (existeCajaAbierta)
-                return Conflict("Ya existe una caja abierta.");
-
-            var caja = new Caja
-            {
-                FechaApertura = DateTime.UtcNow,
-                MontoInicial = datos.MontoInicial,
-                Estado = "Abierta",
-                Observaciones = string.IsNullOrWhiteSpace(observaciones)
-                    ? null
-                    : observaciones
-            };
-
-            _context.Cajas.Add(caja);
-
             try
             {
+                await using var transaccion = await _context.Database
+                    .BeginTransactionAsync(
+                        System.Data.IsolationLevel.Serializable);
+
+                var existeCajaAbierta = await _context.Cajas
+                    .AnyAsync(c => c.Estado == "Abierta");
+
+                if (existeCajaAbierta)
+                    return Conflict("Ya existe una caja abierta.");
+
+                var caja = new Caja
+                {
+                    FechaApertura = DateTime.UtcNow,
+                    MontoInicial = datos.MontoInicial,
+                    Estado = "Abierta",
+                    Observaciones = string.IsNullOrWhiteSpace(observaciones)
+                        ? null
+                        : observaciones
+                };
+
+                _context.Cajas.Add(caja);
+
                 await _context.SaveChangesAsync();
+
+                _auditoriaService.Registrar(
+                    usuarioId,
+                    "ABRIR_CAJA",
+                    "Caja",
+                    caja.Id.ToString(),
+                    $"Caja abierta correctamente. " +
+                    $"Monto inicial: {caja.MontoInicial}.");
+
+                await _context.SaveChangesAsync();
+
+                await transaccion.CommitAsync();
+
+                return StatusCode(201, new
+                {
+                    mensaje = "Caja abierta correctamente.",
+                    caja.Id,
+                    caja.FechaApertura,
+                    caja.MontoInicial,
+                    caja.Estado,
+                    caja.Observaciones
+                });
             }
             catch (DbUpdateException ex) when (
                 ex.InnerException is SqlException sqlEx &&
@@ -72,16 +108,18 @@ namespace Inventario.Api.Controllers
             {
                 return Conflict("Ya existe una caja abierta.");
             }
-
-            return StatusCode(201, new
+            catch (DbUpdateException ex) when (
+                ex.InnerException is SqlException sqlEx &&
+                sqlEx.Number == 1205)
             {
-                mensaje = "Caja abierta correctamente.",
-                caja.Id,
-                caja.FechaApertura,
-                caja.MontoInicial,
-                caja.Estado,
-                caja.Observaciones
-            });
+                return Conflict(
+                    "Existe una operación simultánea. Intente nuevamente.");
+            }
+            catch (SqlException ex) when (ex.Number == 1205)
+            {
+                return Conflict(
+                    "Existe una operación simultánea. Intente nuevamente.");
+            }
         }
 
         [Permiso(Permisos.CajaGestionar)]
@@ -251,10 +289,16 @@ namespace Inventario.Api.Controllers
         [Permiso(Permisos.CajaGestionar)]
         [HttpPatch("{id:int}/cerrar")]
         public async Task<IActionResult> CerrarCaja(
-    int id,
-    [FromBody] CerrarCajaDto datos)
+            int id,
+            [FromBody] CerrarCajaDto datos)
         {
             const decimal limiteDinero = 10000000000000000m;
+
+            if (!int.TryParse(User.FindFirst("sub")?.Value, out var usuarioId) ||
+                usuarioId <= 0)
+            {
+                return Unauthorized();
+            }
 
             if (id <= 0)
                 return BadRequest(
@@ -355,6 +399,28 @@ namespace Inventario.Api.Controllers
                 if (!string.IsNullOrWhiteSpace(observaciones))
                     caja.Observaciones = observaciones;
 
+                var resultadoArqueo = diferencia switch
+                {
+                    > 0 => "Sobrante",
+                    < 0 => "Faltante",
+                    _ => "Caja cuadrada"
+                };
+
+                _auditoriaService.Registrar(
+                    usuarioId,
+                    "CERRAR_CAJA",
+                    "Caja",
+                    caja.Id.ToString(),
+                    $"Caja cerrada correctamente. " +
+                    $"Monto inicial: {caja.MontoInicial}. " +
+                    $"Cobros en efectivo: {cobrosEfectivo}. " +
+                    $"Total ingresos: {totalIngresos}. " +
+                    $"Total egresos: {totalEgresos}. " +
+                    $"Monto esperado: {montoEsperado}. " +
+                    $"Monto real: {datos.MontoReal}. " +
+                    $"Diferencia: {diferencia}. " +
+                    $"Resultado: {resultadoArqueo}.");
+
                 await _context.SaveChangesAsync();
 
                 await transaccion.CommitAsync();
@@ -374,12 +440,7 @@ namespace Inventario.Api.Controllers
                     caja.Diferencia,
                     caja.Estado,
                     caja.Observaciones,
-                    resultadoArqueo = diferencia switch
-                    {
-                        > 0 => "Sobrante",
-                        < 0 => "Faltante",
-                        _ => "Caja cuadrada"
-                    }
+                    resultadoArqueo
                 });
             }
             catch (OverflowException)

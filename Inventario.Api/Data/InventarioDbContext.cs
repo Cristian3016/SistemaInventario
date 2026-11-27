@@ -57,6 +57,7 @@ namespace Inventario.Api.Data
 
         public DbSet<RefreshToken> RefreshTokens { get; set; }
 
+        public DbSet<Auditoria> Auditorias { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -847,6 +848,35 @@ namespace Inventario.Api.Data
                     .IsUnique()
                     .HasFilter(
                         "[FechaUtilizacion] IS NULL AND [FechaRevocacion] IS NULL");
+            });
+            modelBuilder.Entity<Auditoria>(entity =>
+            {
+                entity.ToTable("Auditorias");
+
+                entity.HasKey(a => a.Id);
+
+                entity.Property(a => a.Accion)
+                    .IsRequired()
+                    .HasMaxLength(100);
+
+                entity.Property(a => a.Entidad)
+                    .IsRequired()
+                    .HasMaxLength(100);
+
+                entity.Property(a => a.EntidadId)
+                    .HasMaxLength(100);
+
+                entity.Property(a => a.Descripcion)
+                    .HasMaxLength(1000);
+
+                entity.Property(a => a.FechaUtc)
+                    .IsRequired();
+
+                entity.HasIndex(a => a.UsuarioId);
+
+                entity.HasIndex(a => a.FechaUtc);
+
+                entity.HasIndex(a => new { a.Entidad, a.EntidadId });
             });
 
         }

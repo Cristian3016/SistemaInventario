@@ -5,6 +5,7 @@ using Inventario.Api.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Inventario.Api.Authorization;
+using Inventario.Api.Services;
 
 namespace Inventario.Api.Controllers
 {
@@ -13,25 +14,36 @@ namespace Inventario.Api.Controllers
     public class ComprasController : ControllerBase
     {
         private readonly InventarioDbContext _context;
+        private readonly IAuditoriaService _auditoriaService;
 
-        public ComprasController(InventarioDbContext context)
+        public ComprasController(
+            InventarioDbContext context,
+            IAuditoriaService auditoriaService)
         {
             _context = context;
+            _auditoriaService = auditoriaService;
         }
+
         private const decimal LimiteCantidad = 1000000000000000m;
         private const decimal LimiteDinero = 10000000000000000m;
         private const decimal StockMaximo = 999999999999999.999m;
 
         private async Task<IActionResult> EjecutarEscrituraCompra(
-            Func<Task<IActionResult>> operacion)
+            Func<int, Task<IActionResult>> operacion)
         {
+            if (!int.TryParse(User.FindFirst("sub")?.Value, out var usuarioId) ||
+                usuarioId <= 0)
+            {
+                return Unauthorized();
+            }
+
             try
             {
                 await using var transaccion = await _context.Database
                     .BeginTransactionAsync(
                         System.Data.IsolationLevel.Serializable);
 
-                var resultado = await operacion();
+                var resultado = await operacion(usuarioId);
 
                 if (resultado is ObjectResult
                     { StatusCode: >= 200 and < 300 } ||
@@ -174,9 +186,9 @@ namespace Inventario.Api.Controllers
         [Permiso(Permisos.ComprasGestionar)]
         [HttpPost]
         public async Task<IActionResult> CrearCompra(
-    [FromBody] CrearCompraDto datos)
+            [FromBody] CrearCompraDto datos)
         {
-            return await EjecutarEscrituraCompra(async () =>
+            return await EjecutarEscrituraCompra(async usuarioId =>
             {
                 if (datos == null)
                     return BadRequest(
@@ -220,6 +232,16 @@ namespace Inventario.Api.Controllers
 
                 await _context.SaveChangesAsync();
 
+                _auditoriaService.Registrar(
+                    usuarioId,
+                    "CREAR_COMPRA",
+                    "Compra",
+                    compra.Id.ToString(),
+                    $"Compra creada en estado Borrador. " +
+                    $"Proveedor ID: {compra.ProveedorId}.");
+
+                await _context.SaveChangesAsync();
+
                 return StatusCode(201, new
                 {
                     mensaje = "Compra registrada correctamente.",
@@ -237,10 +259,10 @@ namespace Inventario.Api.Controllers
         [Permiso(Permisos.ComprasGestionar)]
         [HttpPost("{compraId:int}/detalles")]
         public async Task<IActionResult> AgregarDetalleCompra(
-    int compraId,
-    [FromBody] AgregarDetalleCompraDto datos)
+            int compraId,
+            [FromBody] AgregarDetalleCompraDto datos)
         {
-            return await EjecutarEscrituraCompra(async () =>
+            return await EjecutarEscrituraCompra(async usuarioId =>
             {
                 if (compraId <= 0)
                     return BadRequest(
@@ -311,6 +333,20 @@ namespace Inventario.Api.Controllers
                 _context.DetallesCompra.Add(detalle);
 
                 compra.Total = nuevoTotal;
+
+                await _context.SaveChangesAsync();
+
+                _auditoriaService.Registrar(
+                    usuarioId,
+                    "AGREGAR_DETALLE",
+                    "Compra",
+                    compraId.ToString(),
+                    $"Detalle ID: {detalle.Id}. " +
+                    $"Producto ID: {detalle.ProductoId}. " +
+                    $"Cantidad: {detalle.Cantidad}. " +
+                    $"Precio unitario: {detalle.PrecioUnitario}. " +
+                    $"Subtotal: {detalle.Subtotal}. " +
+                    $"Total compra: {compra.Total}.");
 
                 await _context.SaveChangesAsync();
 
@@ -404,16 +440,19 @@ namespace Inventario.Api.Controllers
                 };
 
                 if (estadoNormalizado == null)
-                    return BadRequest("El estado debe ser Borrador, Confirmada o Anulada.");
+                    return BadRequest(
+                        "El estado debe ser Borrador, Confirmada o Anulada.");
             }
 
             var consulta = _context.Compras.AsNoTracking();
 
             if (proveedorId.HasValue)
-                consulta = consulta.Where(c => c.ProveedorId == proveedorId.Value);
+                consulta = consulta.Where(
+                    c => c.ProveedorId == proveedorId.Value);
 
             if (estadoNormalizado != null)
-                consulta = consulta.Where(c => c.Estado == estadoNormalizado);
+                consulta = consulta.Where(
+                    c => c.Estado == estadoNormalizado);
 
             var compras = await consulta
                 .OrderByDescending(c => c.FechaCompra)
@@ -439,7 +478,7 @@ namespace Inventario.Api.Controllers
         [HttpPatch("{id:int}/confirmar")]
         public async Task<IActionResult> ConfirmarCompra(int id)
         {
-            return await EjecutarEscrituraCompra(async () =>
+            return await EjecutarEscrituraCompra(async usuarioId =>
             {
                 if (id <= 0)
                     return BadRequest(
@@ -530,6 +569,16 @@ namespace Inventario.Api.Controllers
 
                 compra.Estado = "Confirmada";
 
+                _auditoriaService.Registrar(
+                    usuarioId,
+                    "CONFIRMAR_COMPRA",
+                    "Compra",
+                    compra.Id.ToString(),
+                    $"Compra confirmada correctamente. " +
+                    $"Proveedor ID: {compra.ProveedorId}. " +
+                    $"Total: {compra.Total}. " +
+                    $"Movimientos de stock: {detalles.Count}.");
+
                 await _context.SaveChangesAsync();
 
                 return Ok(new
@@ -545,9 +594,9 @@ namespace Inventario.Api.Controllers
         [Permiso(Permisos.ComprasGestionar)]
         [HttpDelete("{compraId:int}/detalles/{detalleId:int}")]
         public async Task<IActionResult> EliminarDetalleCompra(
-    int compraId, int detalleId)
+            int compraId, int detalleId)
         {
-            return await EjecutarEscrituraCompra(async () =>
+            return await EjecutarEscrituraCompra(async usuarioId =>
             {
                 if (compraId <= 0 || detalleId <= 0)
                     return BadRequest(
@@ -581,6 +630,17 @@ namespace Inventario.Api.Controllers
 
                 compra.Total -= detalle.Subtotal;
 
+                _auditoriaService.Registrar(
+                    usuarioId,
+                    "ELIMINAR_DETALLE",
+                    "Compra",
+                    compraId.ToString(),
+                    $"Detalle ID: {detalle.Id}. " +
+                    $"Producto ID: {detalle.ProductoId}. " +
+                    $"Cantidad eliminada: {detalle.Cantidad}. " +
+                    $"Subtotal eliminado: {detalle.Subtotal}. " +
+                    $"Total compra: {compra.Total}.");
+
                 _context.DetallesCompra.Remove(detalle);
 
                 await _context.SaveChangesAsync();
@@ -599,48 +659,63 @@ namespace Inventario.Api.Controllers
         [HttpPatch("{id:int}/anular")]
         public async Task<IActionResult> AnularCompra(int id)
         {
-            if (id <= 0)
-                return BadRequest("El ID de la compra debe ser mayor que cero.");
-
-            var filasActualizadas = await _context.Compras
-                .Where(c => c.Id == id && c.Estado == "Borrador")
-                .ExecuteUpdateAsync(cambios =>
-                    cambios.SetProperty(c => c.Estado, "Anulada"));
-
-            if (filasActualizadas == 0)
+            return await EjecutarEscrituraCompra(async usuarioId =>
             {
-                var compra = await _context.Compras
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(c => c.Id == id);
+                if (id <= 0)
+                    return BadRequest(
+                        "El ID de la compra debe ser mayor que cero.");
 
-                if (compra == null)
-                    return NotFound("Compra no encontrada.");
+                var filasActualizadas = await _context.Compras
+                    .Where(c => c.Id == id && c.Estado == "Borrador")
+                    .ExecuteUpdateAsync(cambios =>
+                        cambios.SetProperty(c => c.Estado, "Anulada"));
 
-                if (compra.Estado == "Anulada")
-                    return Conflict("La compra ya está anulada.");
+                if (filasActualizadas == 0)
+                {
+                    var compra = await _context.Compras
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(c => c.Id == id);
 
-                if (compra.Estado == "Confirmada")
-                    return Conflict("No se puede anular una compra confirmada.");
+                    if (compra == null)
+                        return NotFound("Compra no encontrada.");
 
-                return Conflict("Solo se pueden anular compras en estado Borrador.");
-            }
+                    if (compra.Estado == "Anulada")
+                        return Conflict("La compra ya está anulada.");
 
-            return Ok(new
-            {
-                mensaje = "Compra anulada correctamente.",
-                compraId = id,
-                estado = "Anulada"
+                    if (compra.Estado == "Confirmada")
+                        return Conflict(
+                            "No se puede anular una compra confirmada.");
+
+                    return Conflict(
+                        "Solo se pueden anular compras en estado Borrador.");
+                }
+
+                _auditoriaService.Registrar(
+                    usuarioId,
+                    "ANULAR_COMPRA",
+                    "Compra",
+                    id.ToString(),
+                    "Compra anulada correctamente desde el estado Borrador.");
+
+                await _context.SaveChangesAsync();
+
+                return Ok(new
+                {
+                    mensaje = "Compra anulada correctamente.",
+                    compraId = id,
+                    estado = "Anulada"
+                });
             });
         }
 
         [Permiso(Permisos.ComprasGestionar)]
         [HttpPut("{compraId:int}/detalles/{detalleId:int}")]
         public async Task<IActionResult> ActualizarDetalleCompra(
-    int compraId,
-    int detalleId,
-    [FromBody] ActualizarDetalleCompraDto datos)
+            int compraId,
+            int detalleId,
+            [FromBody] ActualizarDetalleCompraDto datos)
         {
-            return await EjecutarEscrituraCompra(async () =>
+            return await EjecutarEscrituraCompra(async usuarioId =>
             {
                 if (compraId <= 0 || detalleId <= 0)
                     return BadRequest(
@@ -700,11 +775,32 @@ namespace Inventario.Api.Controllers
                     return BadRequest(
                         "El total supera el límite permitido.");
 
+                var cantidadAnterior = detalle.Cantidad;
+                var precioAnterior = detalle.PrecioUnitario;
+                var subtotalAnterior = detalle.Subtotal;
+                var totalAnterior = compra.Total;
+
                 detalle.Cantidad = datos.Cantidad;
                 detalle.PrecioUnitario = datos.PrecioUnitario;
                 detalle.Subtotal = nuevoSubtotal;
 
                 compra.Total = nuevoTotal;
+
+                _auditoriaService.Registrar(
+                    usuarioId,
+                    "MODIFICAR_DETALLE",
+                    "Compra",
+                    compraId.ToString(),
+                    $"Detalle ID: {detalle.Id}. " +
+                    $"Producto ID: {detalle.ProductoId}. " +
+                    $"Cantidad anterior: {cantidadAnterior}. " +
+                    $"Nueva cantidad: {detalle.Cantidad}. " +
+                    $"Precio anterior: {precioAnterior}. " +
+                    $"Nuevo precio: {detalle.PrecioUnitario}. " +
+                    $"Subtotal anterior: {subtotalAnterior}. " +
+                    $"Nuevo subtotal: {detalle.Subtotal}. " +
+                    $"Total anterior: {totalAnterior}. " +
+                    $"Nuevo total: {compra.Total}.");
 
                 await _context.SaveChangesAsync();
 

@@ -5,6 +5,7 @@ using Inventario.Api.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Inventario.Api.Authorization;
+using Inventario.Api.Services;
 
 namespace Inventario.Api.Controllers
 {
@@ -13,19 +14,29 @@ namespace Inventario.Api.Controllers
     public class MovimientosCajaController : ControllerBase
     {
         private readonly InventarioDbContext _context;
+        private readonly IAuditoriaService _auditoriaService;
 
-        public MovimientosCajaController(InventarioDbContext context)
+        public MovimientosCajaController(
+            InventarioDbContext context,
+            IAuditoriaService auditoriaService)
         {
             _context = context;
+            _auditoriaService = auditoriaService;
         }
 
         [Permiso(Permisos.CajaGestionar)]
         [HttpPost]
         public async Task<IActionResult> RegistrarMovimiento(
-     int cajaId,
-     [FromBody] RegistrarMovimientoCajaDto datos)
+            int cajaId,
+            [FromBody] RegistrarMovimientoCajaDto datos)
         {
             const decimal limiteDinero = 10000000000000000m;
+
+            if (!int.TryParse(User.FindFirst("sub")?.Value, out var usuarioId) ||
+                usuarioId <= 0)
+            {
+                return Unauthorized();
+            }
 
             if (cajaId <= 0)
                 return BadRequest(
@@ -162,6 +173,23 @@ namespace Inventario.Api.Controllers
                 };
 
                 _context.MovimientosCaja.Add(movimiento);
+
+                await _context.SaveChangesAsync();
+
+                var accion = movimiento.Tipo == TipoMovimientoCaja.Ingreso
+                    ? "INGRESO_CAJA"
+                    : "EGRESO_CAJA";
+
+                _auditoriaService.Registrar(
+                    usuarioId,
+                    accion,
+                    "MovimientoCaja",
+                    movimiento.Id.ToString(),
+                    $"Caja ID: {movimiento.CajaId}. " +
+                    $"Tipo de movimiento: {movimiento.Tipo}. " +
+                    $"Monto: {movimiento.Monto}. " +
+                    $"Efectivo anterior: {efectivoDisponible}. " +
+                    $"Efectivo resultante: {nuevoEfectivo}.");
 
                 await _context.SaveChangesAsync();
 

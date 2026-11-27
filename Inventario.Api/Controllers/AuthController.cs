@@ -23,6 +23,7 @@ namespace Inventario.Api.Controllers
         private readonly IPasswordHasher<Usuario> _passwordHasher;
         private readonly IJwtService _jwtService;
         private readonly JwtSettings _jwtSettings;
+        private readonly IAuditoriaService _auditoriaService;
 
         private const string RefreshTokenCookieName =
             "inventario_refresh_token";
@@ -31,12 +32,14 @@ namespace Inventario.Api.Controllers
             InventarioDbContext context,
             IPasswordHasher<Usuario> passwordHasher,
             IJwtService jwtService,
-            IOptions<JwtSettings> jwtOptions)
+            IOptions<JwtSettings> jwtOptions,
+            IAuditoriaService auditoriaService)
         {
             _context = context;
             _passwordHasher = passwordHasher;
             _jwtService = jwtService;
             _jwtSettings = jwtOptions.Value;
+            _auditoriaService = auditoriaService;
         }
 
         [AllowAnonymous]
@@ -44,10 +47,10 @@ namespace Inventario.Api.Controllers
         [HttpPost("login")]
         [Consumes("application/json")]
         [ResponseCache(
-    NoStore = true,
-    Location = ResponseCacheLocation.None)]
+            NoStore = true,
+            Location = ResponseCacheLocation.None)]
         public async Task<ActionResult<LoginRespuestaDto>> Login(
-    [FromBody] LoginDto datos)
+            [FromBody] LoginDto datos)
         {
             if (datos == null ||
                 string.IsNullOrWhiteSpace(datos.NombreUsuario) ||
@@ -75,6 +78,17 @@ namespace Inventario.Api.Controllers
 
                 if (usuario == null || !usuario.Activo)
                 {
+                    _auditoriaService.Registrar(
+                        null,
+                        "LOGIN_FALLIDO",
+                        "Usuario",
+                        usuario?.Id.ToString(),
+                        "Intento de inicio de sesión rechazado.");
+
+                    await _context.SaveChangesAsync();
+
+                    await transaccion.CommitAsync();
+
                     return Unauthorized(new
                     {
                         mensaje = "Usuario o contraseña incorrectos."
@@ -88,6 +102,17 @@ namespace Inventario.Api.Controllers
 
                 if (resultado == PasswordVerificationResult.Failed)
                 {
+                    _auditoriaService.Registrar(
+                        null,
+                        "LOGIN_FALLIDO",
+                        "Usuario",
+                        usuario.Id.ToString(),
+                        "Intento de inicio de sesión rechazado.");
+
+                    await _context.SaveChangesAsync();
+
+                    await transaccion.CommitAsync();
+
                     return Unauthorized(new
                     {
                         mensaje = "Usuario o contraseña incorrectos."
@@ -159,6 +184,13 @@ namespace Inventario.Api.Controllers
                 _context.SesionesUsuarios.Add(sesion);
 
                 _context.RefreshTokens.Add(refreshToken);
+
+                _auditoriaService.Registrar(
+                    usuario.Id,
+                    "INICIAR_SESION",
+                    "SesionUsuario",
+                    sesion.Id.ToString(),
+                    "Inicio de sesión exitoso.");
 
                 await _context.SaveChangesAsync();
 
@@ -486,7 +518,7 @@ namespace Inventario.Api.Controllers
 
                     await _context.SaveChangesAsync();
 
-                    await _context.RefreshTokens
+                    var tokensRevocados = await _context.RefreshTokens
                         .Where(rt =>
                             rt.SesionUsuarioId == sesion.Id &&
                             rt.FechaRevocacion == null)
@@ -497,6 +529,18 @@ namespace Inventario.Api.Controllers
                             .SetProperty(
                                 rt => rt.MotivoRevocacion,
                                 motivo));
+
+                    _auditoriaService.Registrar(
+                        null,
+                        "REUTILIZACION_REFRESH_TOKEN",
+                        "SesionUsuario",
+                        sesion.Id.ToString(),
+                        $"Se detectó la reutilización de un Refresh Token. " +
+                        $"Usuario afectado ID: {usuario.Id}. " +
+                        $"Sesión invalidada. " +
+                        $"Tokens revocados: {tokensRevocados}.");
+
+                    await _context.SaveChangesAsync();
 
                     await transaccion.CommitAsync();
 
@@ -640,8 +684,8 @@ namespace Inventario.Api.Controllers
         [AllowAnonymous]
         [HttpPost("/api/auth/logout")]
         [ResponseCache(
-    NoStore = true,
-    Location = ResponseCacheLocation.None)]
+            NoStore = true,
+            Location = ResponseCacheLocation.None)]
         public async Task<IActionResult> CerrarSesion()
         {
             if (Request.Headers["X-CSRF-Protection"].ToString() != "1")
@@ -710,7 +754,13 @@ namespace Inventario.Api.Controllers
                     const string motivo =
                         "Cierre de sesión voluntario.";
 
-                    await _context.SesionesUsuarios
+                    var usuarioSesionId = await _context.SesionesUsuarios
+                        .AsNoTracking()
+                        .Where(s => s.Id == sesionId.Value)
+                        .Select(s => (int?)s.UsuarioId)
+                        .FirstOrDefaultAsync();
+
+                    var sesionesRevocadas = await _context.SesionesUsuarios
                         .Where(s =>
                             s.Id == sesionId.Value &&
                             s.FechaRevocacion == null)
@@ -722,7 +772,7 @@ namespace Inventario.Api.Controllers
                                 s => s.MotivoRevocacion,
                                 motivo));
 
-                    await _context.RefreshTokens
+                    var tokensRevocados = await _context.RefreshTokens
                         .Where(rt =>
                             rt.SesionUsuarioId == sesionId.Value &&
                             rt.FechaRevocacion == null)
@@ -733,6 +783,20 @@ namespace Inventario.Api.Controllers
                             .SetProperty(
                                 rt => rt.MotivoRevocacion,
                                 motivo));
+
+                    if (sesionesRevocadas > 0 || tokensRevocados > 0)
+                    {
+                        _auditoriaService.Registrar(
+                            usuarioSesionId,
+                            "CERRAR_SESION",
+                            "SesionUsuario",
+                            sesionId.Value.ToString(),
+                            $"Cierre de sesión voluntario. " +
+                            $"Sesiones revocadas: {sesionesRevocadas}. " +
+                            $"Tokens revocados: {tokensRevocados}.");
+
+                        await _context.SaveChangesAsync();
+                    }
                 }
 
                 await transaccion.CommitAsync();
@@ -812,7 +876,7 @@ namespace Inventario.Api.Controllers
                 const string motivo =
                     "Cierre voluntario de todas las sesiones.";
 
-                await _context.SesionesUsuarios
+                var sesionesRevocadas = await _context.SesionesUsuarios
                     .Where(s =>
                         s.UsuarioId == usuarioId &&
                         s.FechaRevocacion == null)
@@ -824,7 +888,7 @@ namespace Inventario.Api.Controllers
                             s => s.MotivoRevocacion,
                             motivo));
 
-                await _context.RefreshTokens
+                var tokensRevocados = await _context.RefreshTokens
                     .Where(rt =>
                         rt.SesionUsuario.UsuarioId == usuarioId &&
                         rt.FechaRevocacion == null)
@@ -836,7 +900,30 @@ namespace Inventario.Api.Controllers
                             rt => rt.MotivoRevocacion,
                             motivo));
 
+                if (sesionesRevocadas > 0 || tokensRevocados > 0)
+                {
+                    _auditoriaService.Registrar(
+                        usuarioId,
+                        "CERRAR_TODAS_SESIONES",
+                        "Usuario",
+                        usuarioId.ToString(),
+                        $"Cierre voluntario de todas las sesiones. " +
+                        $"Sesiones revocadas: {sesionesRevocadas}. " +
+                        $"Tokens revocados: {tokensRevocados}.");
+
+                    await _context.SaveChangesAsync();
+                }
+
                 await transaccion.CommitAsync();
+            }
+            catch (DbUpdateException ex) when (
+                ex.InnerException is SqlException sqlEx &&
+                sqlEx.Number == 1205)
+            {
+                return Conflict(new
+                {
+                    mensaje = "Conflicto durante el cierre de todas las sesiones."
+                });
             }
             catch (SqlException ex) when (ex.Number == 1205)
             {
@@ -1003,7 +1090,7 @@ namespace Inventario.Api.Controllers
                 const string motivo =
                     "Cierre remoto de sesión por el usuario.";
 
-                await _context.SesionesUsuarios
+                var sesionesRevocadas = await _context.SesionesUsuarios
                     .Where(s =>
                         s.Id == id &&
                         s.UsuarioId == usuarioId &&
@@ -1016,7 +1103,7 @@ namespace Inventario.Api.Controllers
                             s => s.MotivoRevocacion,
                             motivo));
 
-                await _context.RefreshTokens
+                var tokensRevocados = await _context.RefreshTokens
                     .Where(rt =>
                         rt.SesionUsuarioId == id &&
                         rt.FechaRevocacion == null)
@@ -1028,9 +1115,32 @@ namespace Inventario.Api.Controllers
                             rt => rt.MotivoRevocacion,
                             motivo));
 
+                if (sesionesRevocadas > 0 || tokensRevocados > 0)
+                {
+                    _auditoriaService.Registrar(
+                        usuarioId,
+                        "REVOCAR_SESION",
+                        "SesionUsuario",
+                        id.ToString(),
+                        $"Cierre remoto de sesión por el usuario. " +
+                        $"Sesiones revocadas: {sesionesRevocadas}. " +
+                        $"Tokens revocados: {tokensRevocados}.");
+
+                    await _context.SaveChangesAsync();
+                }
+
                 await transaccion.CommitAsync();
 
                 return NoContent();
+            }
+            catch (DbUpdateException ex) when (
+                ex.InnerException is SqlException sqlEx &&
+                sqlEx.Number == 1205)
+            {
+                return Conflict(new
+                {
+                    mensaje = "Conflicto durante la revocación de la sesión."
+                });
             }
             catch (SqlException ex) when (ex.Number == 1205)
             {

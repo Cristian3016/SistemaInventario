@@ -5,6 +5,7 @@ using Inventario.Api.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Inventario.Api.Authorization;
+using Inventario.Api.Services;
 
 namespace Inventario.Api.Controllers
 {
@@ -13,10 +14,14 @@ namespace Inventario.Api.Controllers
     public class MovimientosStockController : ControllerBase
     {
         private readonly InventarioDbContext _context;
+        private readonly IAuditoriaService _auditoriaService;
 
-        public MovimientosStockController(InventarioDbContext context)
+        public MovimientosStockController(
+            InventarioDbContext context,
+            IAuditoriaService auditoriaService)
         {
             _context = context;
+            _auditoriaService = auditoriaService;
         }
 
         [Permiso(Permisos.StockGestionar)]
@@ -44,9 +49,15 @@ namespace Inventario.Api.Controllers
         [Permiso(Permisos.StockGestionar)]
         [HttpPost]
         public async Task<IActionResult> RegistrarMovimiento(
-    [FromBody] RegistrarMovimientoStockDto datos)
+            [FromBody] RegistrarMovimientoStockDto datos)
         {
             const decimal stockMaximo = 999999999999999.999m;
+
+            if (!int.TryParse(User.FindFirst("sub")?.Value, out var usuarioId) ||
+                usuarioId <= 0)
+            {
+                return Unauthorized();
+            }
 
             if (datos == null)
                 return BadRequest(
@@ -165,6 +176,21 @@ namespace Inventario.Api.Controllers
                     .Where(p => p.Id == datos.ProductoId)
                     .Select(p => p.Stock)
                     .SingleAsync();
+
+                var accion = datos.Tipo == TipoMovimiento.Entrada
+                    ? "ENTRADA_STOCK"
+                    : "SALIDA_STOCK";
+
+                _auditoriaService.Registrar(
+                    usuarioId,
+                    accion,
+                    "MovimientoStock",
+                    movimiento.Id.ToString(),
+                    $"Producto ID: {movimiento.ProductoId}. " +
+                    $"Cantidad: {movimiento.Cantidad}. " +
+                    $"Stock resultante: {stockActual}.");
+
+                await _context.SaveChangesAsync();
 
                 await transaccion.CommitAsync();
 

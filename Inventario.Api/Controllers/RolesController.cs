@@ -6,6 +6,7 @@ using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Inventario.Api.Authorization;
 using System.Security.Claims;
+using Inventario.Api.Services;
 
 namespace Inventario.Api.Controllers
 {
@@ -15,19 +16,22 @@ namespace Inventario.Api.Controllers
     {
         private readonly InventarioDbContext _context;
         private readonly IWebHostEnvironment _environment;
+        private readonly IAuditoriaService _auditoriaService;
 
         public RolesController(
             InventarioDbContext context,
-            IWebHostEnvironment environment)
+            IWebHostEnvironment environment,
+            IAuditoriaService auditoriaService)
         {
             _context = context;
             _environment = environment;
+            _auditoriaService = auditoriaService;
         }
 
         [Permiso(Permisos.RolesGestionar)]
         [HttpPost]
         public async Task<IActionResult> CrearRol(
-     [FromBody] CrearRolDto datos)
+            [FromBody] CrearRolDto datos)
         {
             if (!_environment.IsDevelopment())
                 return NotFound();
@@ -91,6 +95,16 @@ namespace Inventario.Api.Controllers
                 };
 
                 _context.Roles.Add(rol);
+
+                await _context.SaveChangesAsync();
+
+                _auditoriaService.Registrar(
+                    usuarioAutenticadoId,
+                    "CREAR_ROL",
+                    "Rol",
+                    rol.Id.ToString(),
+                    $"Rol creado correctamente. " +
+                    $"Nombre: {rol.Nombre}.");
 
                 await _context.SaveChangesAsync();
 
@@ -201,8 +215,8 @@ namespace Inventario.Api.Controllers
         [Permiso(Permisos.RolesGestionar)]
         [HttpPut("{id:int}")]
         public async Task<IActionResult> ActualizarRol(
-    int id,
-    [FromBody] ActualizarRolDto datos)
+            int id,
+            [FromBody] ActualizarRolDto datos)
         {
             if (!_environment.IsDevelopment())
                 return NotFound();
@@ -272,8 +286,21 @@ namespace Inventario.Api.Controllers
                 if (existeRol)
                     return Conflict("Ya existe un rol con ese nombre.");
 
+                var nombreAnterior = rol.Nombre;
+                var descripcionAnterior = rol.Descripcion;
+
                 rol.Nombre = nombre;
                 rol.Descripcion = descripcion;
+
+                _auditoriaService.Registrar(
+                    usuarioAutenticadoId,
+                    "ACTUALIZAR_ROL",
+                    "Rol",
+                    rol.Id.ToString(),
+                    $"Rol actualizado correctamente. " +
+                    $"Nombre anterior: {nombreAnterior}. " +
+                    $"Nuevo nombre: {rol.Nombre}. " +
+                    $"Descripción modificada: {descripcionAnterior != rol.Descripcion}.");
 
                 await _context.SaveChangesAsync();
 
@@ -362,6 +389,14 @@ namespace Inventario.Api.Controllers
 
                 rol.Activo = false;
 
+                _auditoriaService.Registrar(
+                    usuarioAutenticadoId,
+                    "DESACTIVAR_ROL",
+                    "Rol",
+                    rol.Id.ToString(),
+                    $"Rol desactivado correctamente. " +
+                    $"Nombre: {rol.Nombre}.");
+
                 await _context.SaveChangesAsync();
 
                 await transaccion.CommitAsync();
@@ -437,6 +472,14 @@ namespace Inventario.Api.Controllers
                     return Conflict("El rol ya se encuentra activado.");
 
                 rol.Activo = true;
+
+                _auditoriaService.Registrar(
+                    usuarioAutenticadoId,
+                    "ACTIVAR_ROL",
+                    "Rol",
+                    rol.Id.ToString(),
+                    $"Rol activado correctamente. " +
+                    $"Nombre: {rol.Nombre}.");
 
                 await _context.SaveChangesAsync();
 
@@ -581,6 +624,16 @@ namespace Inventario.Api.Controllers
 
                 _context.RolesPermisos.Add(rolPermiso);
 
+                _auditoriaService.Registrar(
+                    usuarioAutenticadoId,
+                    "ASIGNAR_PERMISO",
+                    "Rol",
+                    rol.Id.ToString(),
+                    $"Permiso asignado correctamente. " +
+                    $"Rol: {rol.Nombre}. " +
+                    $"Permiso ID: {permiso.Id}. " +
+                    $"Código: {permiso.Codigo}.");
+
                 await _context.SaveChangesAsync();
 
                 await transaccion.CommitAsync();
@@ -624,8 +677,8 @@ namespace Inventario.Api.Controllers
         [Permiso(Permisos.PermisosGestionar)]
         [HttpDelete("{id:int}/permisos/{permisoId:int}")]
         public async Task<IActionResult> QuitarPermiso(
-    int id,
-    int permisoId)
+            int id,
+            int permisoId)
         {
             if (!_environment.IsDevelopment())
                 return NotFound();
@@ -681,6 +734,16 @@ namespace Inventario.Api.Controllers
                     return NotFound("El rol no tiene asignado este permiso.");
 
                 _context.RolesPermisos.Remove(rolPermiso);
+
+                _auditoriaService.Registrar(
+                    usuarioAutenticadoId,
+                    "QUITAR_PERMISO",
+                    "Rol",
+                    rol.Id.ToString(),
+                    $"Permiso quitado correctamente. " +
+                    $"Rol: {rol.Nombre}. " +
+                    $"Permiso ID: {permiso.Id}. " +
+                    $"Código: {permiso.Codigo}.");
 
                 await _context.SaveChangesAsync();
 
