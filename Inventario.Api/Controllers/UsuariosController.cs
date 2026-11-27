@@ -9,6 +9,7 @@ using System.Net.Mail;
 using Inventario.Api.Authorization;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
+using Inventario.Api.Services;
 
 namespace Inventario.Api.Controllers
 {
@@ -19,15 +20,27 @@ namespace Inventario.Api.Controllers
         private readonly InventarioDbContext _context;
         private readonly IPasswordHasher<Usuario> _passwordHasher;
         private readonly IWebHostEnvironment _environment;
+        private readonly IAuditoriaService _auditoriaService;
 
         public UsuariosController(
             InventarioDbContext context,
             IPasswordHasher<Usuario> passwordHasher,
-            IWebHostEnvironment environment)
+            IWebHostEnvironment environment,
+            IAuditoriaService auditoriaService)
         {
             _context = context;
             _passwordHasher = passwordHasher;
             _environment = environment;
+            _auditoriaService = auditoriaService;
+        }
+
+        private bool ObtenerUsuarioAutenticado(out int usuarioId)
+        {
+            var identificador = User.FindFirstValue(ClaimTypes.NameIdentifier)
+                ?? User.FindFirstValue("sub");
+
+            return int.TryParse(identificador, out usuarioId) &&
+                   usuarioId > 0;
         }
 
         [Permiso(Permisos.UsuariosGestionar)]
@@ -37,6 +50,9 @@ namespace Inventario.Api.Controllers
         {
             if (!_environment.IsDevelopment())
                 return NotFound();
+
+            if (!ObtenerUsuarioAutenticado(out var usuarioAutenticadoId))
+                return Unauthorized();
 
             if (datos == null)
                 return BadRequest("Debes proporcionar los datos del usuario.");
@@ -119,31 +135,59 @@ namespace Inventario.Api.Controllers
                 usuario,
                 datos.Password);
 
-            _context.Usuarios.Add(usuario);
-
             try
             {
+                await using var transaccion = await _context.Database
+                    .BeginTransactionAsync(
+                        System.Data.IsolationLevel.Serializable);
+
+                _context.Usuarios.Add(usuario);
+
                 await _context.SaveChangesAsync();
+
+                _auditoriaService.Registrar(
+                    usuarioAutenticadoId,
+                    "CREAR_USUARIO",
+                    "Usuario",
+                    usuario.Id.ToString(),
+                    "Usuario creado correctamente.");
+
+                await _context.SaveChangesAsync();
+
+                await transaccion.CommitAsync();
+
+                return StatusCode(201, new
+                {
+                    mensaje = "Usuario registrado correctamente.",
+                    usuario.Id,
+                    usuario.Nombre,
+                    usuario.Apellido,
+                    usuario.NombreUsuario,
+                    usuario.Email,
+                    usuario.Activo,
+                    usuario.FechaCreacion,
+                    usuario.UltimoAcceso
+                });
             }
             catch (DbUpdateException ex) when (
                 ex.InnerException is SqlException sqlEx &&
                 (sqlEx.Number == 2601 || sqlEx.Number == 2627))
             {
-                return Conflict("El nombre de usuario o correo electrónico ya está registrado.");
+                return Conflict(
+                    "El nombre de usuario o correo electrónico ya está registrado.");
             }
-
-            return StatusCode(201, new
+            catch (DbUpdateException ex) when (
+                ex.InnerException is SqlException sqlEx &&
+                sqlEx.Number == 1205)
             {
-                mensaje = "Usuario registrado correctamente.",
-                usuario.Id,
-                usuario.Nombre,
-                usuario.Apellido,
-                usuario.NombreUsuario,
-                usuario.Email,
-                usuario.Activo,
-                usuario.FechaCreacion,
-                usuario.UltimoAcceso
-            });
+                return Conflict(
+                    "Existe una operación simultánea. Intente nuevamente.");
+            }
+            catch (SqlException ex) when (ex.Number == 1205)
+            {
+                return Conflict(
+                    "Existe una operación simultánea. Intente nuevamente.");
+            }
         }
 
         [Permiso(Permisos.UsuariosGestionar)]
@@ -231,18 +275,21 @@ namespace Inventario.Api.Controllers
             if (!_environment.IsDevelopment())
                 return NotFound();
 
+            if (!ObtenerUsuarioAutenticado(out var usuarioAutenticadoId))
+                return Unauthorized();
+
             if (id <= 0)
                 return BadRequest("El ID del usuario debe ser mayor que cero.");
 
             if (datos == null)
                 return BadRequest("Debes proporcionar los datos del usuario.");
 
-            await using var transaccion = await _context.Database
-                .BeginTransactionAsync(
-                    System.Data.IsolationLevel.Serializable);
-
             try
             {
+                await using var transaccion = await _context.Database
+                    .BeginTransactionAsync(
+                        System.Data.IsolationLevel.Serializable);
+
                 var usuario = await _context.Usuarios.FindAsync(id);
 
                 if (usuario == null)
@@ -258,12 +305,6 @@ namespace Inventario.Api.Controllers
 
                 if (esAdministrador)
                 {
-                    var identificador = User.FindFirstValue(ClaimTypes.NameIdentifier)
-                        ?? User.FindFirstValue("sub");
-
-                    if (!int.TryParse(identificador, out var usuarioAutenticadoId))
-                        return Unauthorized();
-
                     var solicitanteEsAdministrador = await _context.UsuariosRoles
                         .AnyAsync(ur =>
                             ur.UsuarioId == usuarioAutenticadoId &&
@@ -341,6 +382,13 @@ namespace Inventario.Api.Controllers
                 usuario.NombreUsuario = nombreUsuario;
                 usuario.Email = email;
 
+                _auditoriaService.Registrar(
+                    usuarioAutenticadoId,
+                    "ACTUALIZAR_USUARIO",
+                    "Usuario",
+                    usuario.Id.ToString(),
+                    "Datos del usuario actualizados correctamente.");
+
                 await _context.SaveChangesAsync();
 
                 await transaccion.CommitAsync();
@@ -361,7 +409,7 @@ namespace Inventario.Api.Controllers
             catch (DbUpdateConcurrencyException)
             {
                 return Conflict(
-                    "El usuario fue modificado por otra operacion.");
+                    "El usuario fue modificado por otra operación.");
             }
             catch (DbUpdateException ex) when (
                 ex.InnerException is SqlException sqlEx &&
@@ -375,12 +423,12 @@ namespace Inventario.Api.Controllers
                 sqlEx.Number == 1205)
             {
                 return Conflict(
-                    "Existe una operacion simultanea. Intente nuevamente.");
+                    "Existe una operación simultánea. Intente nuevamente.");
             }
             catch (SqlException ex) when (ex.Number == 1205)
             {
                 return Conflict(
-                    "Existe una operacion simultanea. Intente nuevamente.");
+                    "Existe una operación simultánea. Intente nuevamente.");
             }
         }
 
@@ -390,6 +438,9 @@ namespace Inventario.Api.Controllers
         {
             if (!_environment.IsDevelopment())
                 return NotFound();
+
+            if (!ObtenerUsuarioAutenticado(out var usuarioAutenticadoId))
+                return Unauthorized();
 
             if (id <= 0)
                 return BadRequest("El ID del usuario debe ser mayor que cero.");
@@ -416,12 +467,6 @@ namespace Inventario.Api.Controllers
 
                 if (esAdministrador)
                 {
-                    var identificador = User.FindFirstValue(ClaimTypes.NameIdentifier)
-                        ?? User.FindFirstValue("sub");
-
-                    if (!int.TryParse(identificador, out var usuarioAutenticadoId))
-                        return Unauthorized();
-
                     var solicitanteEsAdministrador = await _context.UsuariosRoles
                         .AnyAsync(ur =>
                             ur.UsuarioId == usuarioAutenticadoId &&
@@ -442,7 +487,7 @@ namespace Inventario.Api.Controllers
                     if (!existeOtroAdministrador)
                     {
                         return Conflict(
-                            "No se puede desactivar al ultimo administrador activo.");
+                            "No se puede desactivar al último administrador activo.");
                     }
                 }
 
@@ -454,7 +499,7 @@ namespace Inventario.Api.Controllers
 
                 const string motivo = "Desactivación de usuario.";
 
-                await _context.SesionesUsuarios
+                var sesionesRevocadas = await _context.SesionesUsuarios
                     .Where(s =>
                         s.UsuarioId == id &&
                         s.FechaRevocacion == null)
@@ -466,7 +511,7 @@ namespace Inventario.Api.Controllers
                             s => s.MotivoRevocacion,
                             motivo));
 
-                await _context.RefreshTokens
+                var tokensRevocados = await _context.RefreshTokens
                     .Where(rt =>
                         rt.SesionUsuario.UsuarioId == id &&
                         rt.FechaRevocacion == null)
@@ -477,6 +522,17 @@ namespace Inventario.Api.Controllers
                         .SetProperty(
                             rt => rt.MotivoRevocacion,
                             motivo));
+
+                _auditoriaService.Registrar(
+                    usuarioAutenticadoId,
+                    "DESACTIVAR_USUARIO",
+                    "Usuario",
+                    usuario.Id.ToString(),
+                    $"Usuario desactivado correctamente. " +
+                    $"Sesiones revocadas: {sesionesRevocadas}. " +
+                    $"Refresh Tokens revocados: {tokensRevocados}.");
+
+                await _context.SaveChangesAsync();
 
                 await transaccion.CommitAsync();
 
@@ -514,15 +570,18 @@ namespace Inventario.Api.Controllers
             if (!_environment.IsDevelopment())
                 return NotFound();
 
+            if (!ObtenerUsuarioAutenticado(out var usuarioAutenticadoId))
+                return Unauthorized();
+
             if (id <= 0)
                 return BadRequest("El ID del usuario debe ser mayor que cero.");
 
-            await using var transaccion = await _context.Database
-                .BeginTransactionAsync(
-                    System.Data.IsolationLevel.Serializable);
-
             try
             {
+                await using var transaccion = await _context.Database
+                    .BeginTransactionAsync(
+                        System.Data.IsolationLevel.Serializable);
+
                 var usuario = await _context.Usuarios.FindAsync(id);
 
                 if (usuario == null)
@@ -538,12 +597,6 @@ namespace Inventario.Api.Controllers
 
                 if (esAdministrador)
                 {
-                    var identificador = User.FindFirstValue(ClaimTypes.NameIdentifier)
-                        ?? User.FindFirstValue("sub");
-
-                    if (!int.TryParse(identificador, out var usuarioAutenticadoId))
-                        return Unauthorized();
-
                     var solicitanteEsAdministrador = await _context.UsuariosRoles
                         .AnyAsync(ur =>
                             ur.UsuarioId == usuarioAutenticadoId &&
@@ -556,6 +609,13 @@ namespace Inventario.Api.Controllers
                 }
 
                 usuario.Activo = true;
+
+                _auditoriaService.Registrar(
+                    usuarioAutenticadoId,
+                    "ACTIVAR_USUARIO",
+                    "Usuario",
+                    usuario.Id.ToString(),
+                    "Usuario activado correctamente.");
 
                 await _context.SaveChangesAsync();
 
@@ -572,27 +632,27 @@ namespace Inventario.Api.Controllers
             catch (DbUpdateConcurrencyException)
             {
                 return Conflict(
-                    "El usuario fue modificado por otra operacion.");
+                    "El usuario fue modificado por otra operación.");
             }
             catch (DbUpdateException ex) when (
                 ex.InnerException is SqlException sqlEx &&
                 sqlEx.Number == 1205)
             {
                 return Conflict(
-                    "Existe una operacion simultanea. Intente nuevamente.");
+                    "Existe una operación simultánea. Intente nuevamente.");
             }
             catch (SqlException ex) when (ex.Number == 1205)
             {
                 return Conflict(
-                    "Existe una operacion simultanea. Intente nuevamente.");
+                    "Existe una operación simultánea. Intente nuevamente.");
             }
         }
 
         [Authorize]
         [HttpPatch("{id:int}/cambiar-password")]
         public async Task<IActionResult> CambiarPassword(
-    int id,
-    [FromBody] CambiarPasswordDto datos)
+            int id,
+            [FromBody] CambiarPasswordDto datos)
         {
             if (!_environment.IsDevelopment())
                 return NotFound();
@@ -600,14 +660,8 @@ namespace Inventario.Api.Controllers
             if (id <= 0)
                 return BadRequest("El ID del usuario debe ser mayor que cero.");
 
-            var identificador = User.FindFirstValue(ClaimTypes.NameIdentifier)
-                ?? User.FindFirstValue("sub");
-
-            if (!int.TryParse(identificador, out var usuarioAutenticadoId) ||
-                usuarioAutenticadoId <= 0)
-            {
+            if (!ObtenerUsuarioAutenticado(out var usuarioAutenticadoId))
                 return Unauthorized();
-            }
 
             if (usuarioAutenticadoId != id)
                 return Forbid();
@@ -669,7 +723,7 @@ namespace Inventario.Api.Controllers
 
                 const string motivo = "Cambio de contraseña.";
 
-                await _context.SesionesUsuarios
+                var sesionesRevocadas = await _context.SesionesUsuarios
                     .Where(s =>
                         s.UsuarioId == id &&
                         s.FechaRevocacion == null)
@@ -681,7 +735,7 @@ namespace Inventario.Api.Controllers
                             s => s.MotivoRevocacion,
                             motivo));
 
-                await _context.RefreshTokens
+                var tokensRevocados = await _context.RefreshTokens
                     .Where(rt =>
                         rt.SesionUsuario.UsuarioId == id &&
                         rt.FechaRevocacion == null)
@@ -692,6 +746,17 @@ namespace Inventario.Api.Controllers
                         .SetProperty(
                             rt => rt.MotivoRevocacion,
                             motivo));
+
+                _auditoriaService.Registrar(
+                    usuarioAutenticadoId,
+                    "CAMBIAR_PASSWORD",
+                    "Usuario",
+                    usuario.Id.ToString(),
+                    $"Contraseña modificada correctamente. " +
+                    $"Sesiones revocadas: {sesionesRevocadas}. " +
+                    $"Refresh Tokens revocados: {tokensRevocados}.");
+
+                await _context.SaveChangesAsync();
 
                 await transaccion.CommitAsync();
 
@@ -724,8 +789,8 @@ namespace Inventario.Api.Controllers
         [Permiso(Permisos.RolesGestionar)]
         [HttpPost("{id:int}/roles/{rolId:int}")]
         public async Task<IActionResult> AsignarRol(
-    int id,
-    int rolId)
+            int id,
+            int rolId)
         {
             if (!_environment.IsDevelopment())
                 return NotFound();
@@ -733,11 +798,7 @@ namespace Inventario.Api.Controllers
             if (id <= 0 || rolId <= 0)
                 return BadRequest("Los IDs deben ser mayores que cero.");
 
-            var identificador = User.FindFirstValue(ClaimTypes.NameIdentifier)
-                ?? User.FindFirstValue("sub");
-
-            if (!int.TryParse(identificador, out var usuarioAutenticadoId) ||
-                usuarioAutenticadoId <= 0)
+            if (!ObtenerUsuarioAutenticado(out var usuarioAutenticadoId))
                 return Unauthorized();
 
             try
@@ -789,6 +850,13 @@ namespace Inventario.Api.Controllers
 
                 _context.UsuariosRoles.Add(usuarioRol);
 
+                _auditoriaService.Registrar(
+                    usuarioAutenticadoId,
+                    "ASIGNAR_ROL",
+                    "Usuario",
+                    usuario.Id.ToString(),
+                    $"Rol asignado correctamente. Rol ID: {rol.Id}.");
+
                 await _context.SaveChangesAsync();
 
                 await transaccion.CommitAsync();
@@ -831,8 +899,8 @@ namespace Inventario.Api.Controllers
         [Permiso(Permisos.RolesGestionar)]
         [HttpDelete("{id:int}/roles/{rolId:int}")]
         public async Task<IActionResult> QuitarRol(
-    int id,
-    int rolId)
+            int id,
+            int rolId)
         {
             if (!_environment.IsDevelopment())
                 return NotFound();
@@ -840,11 +908,7 @@ namespace Inventario.Api.Controllers
             if (id <= 0 || rolId <= 0)
                 return BadRequest("Los IDs deben ser mayores que cero.");
 
-            var identificador = User.FindFirstValue(ClaimTypes.NameIdentifier)
-                ?? User.FindFirstValue("sub");
-
-            if (!int.TryParse(identificador, out var usuarioAutenticadoId) ||
-                usuarioAutenticadoId <= 0)
+            if (!ObtenerUsuarioAutenticado(out var usuarioAutenticadoId))
                 return Unauthorized();
 
             try
@@ -898,6 +962,13 @@ namespace Inventario.Api.Controllers
                 }
 
                 _context.UsuariosRoles.Remove(usuarioRol);
+
+                _auditoriaService.Registrar(
+                    usuarioAutenticadoId,
+                    "QUITAR_ROL",
+                    "Usuario",
+                    usuario.Id.ToString(),
+                    $"Rol quitado correctamente. Rol ID: {rol.Id}.");
 
                 await _context.SaveChangesAsync();
 

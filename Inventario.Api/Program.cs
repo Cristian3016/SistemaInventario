@@ -33,7 +33,41 @@ builder.Services.AddScoped<IJwtService, JwtService>();
 
 builder.Services.AddScoped<JwtSessionEvents>();
 
+builder.Services.AddScoped<IAuditoriaService, AuditoriaService>();
+
 builder.Services.AddOpenApi();
+
+var origenesPermitidos = builder.Configuration
+    .GetSection("Cors:AllowedOrigins")
+    .Get<string[]>()
+    ?? (builder.Environment.IsDevelopment()
+        ? new[]
+        {
+            "http://localhost:4200",
+            "https://localhost:4200"
+        }
+        : Array.Empty<string>());
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("Frontend", policy =>
+    {
+        if (origenesPermitidos.Length > 0)
+        {
+            policy.WithOrigins(origenesPermitidos)
+                .AllowAnyHeader()
+                .AllowAnyMethod()
+                .AllowCredentials();
+        }
+    });
+});
+
+builder.Services.AddHsts(options =>
+{
+    options.MaxAge = TimeSpan.FromDays(365);
+    options.IncludeSubDomains = false;
+    options.Preload = false;
+});
 
 builder.Services.AddRateLimiter(options =>
 {
@@ -169,11 +203,14 @@ if (app.Environment.IsDevelopment())
 else
 {
     app.UseExceptionHandler();
+    app.UseHsts();
 }
 
 app.UseHttpsRedirection();
 
 app.UseRouting();
+
+app.UseCors("Frontend");
 
 app.UseRateLimiter();
 

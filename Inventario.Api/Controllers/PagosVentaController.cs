@@ -5,6 +5,7 @@ using Inventario.Api.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Inventario.Api.Authorization;
+using Inventario.Api.Services;
 
 namespace Inventario.Api.Controllers
 {
@@ -13,19 +14,29 @@ namespace Inventario.Api.Controllers
     public class PagosVentaController : ControllerBase
     {
         private readonly InventarioDbContext _context;
+        private readonly IAuditoriaService _auditoriaService;
 
-        public PagosVentaController(InventarioDbContext context)
+        public PagosVentaController(
+            InventarioDbContext context,
+            IAuditoriaService auditoriaService)
         {
             _context = context;
+            _auditoriaService = auditoriaService;
         }
 
         [Permiso(Permisos.CobrosRegistrar)]
         [HttpPost]
         public async Task<IActionResult> RegistrarPago(
-    int ventaId,
-    [FromBody] RegistrarPagoVentaDto datos)
+            int ventaId,
+            [FromBody] RegistrarPagoVentaDto datos)
         {
             const decimal limiteDinero = 10000000000000000m;
+
+            if (!int.TryParse(User.FindFirst("sub")?.Value, out var usuarioId) ||
+                usuarioId <= 0)
+            {
+                return Unauthorized();
+            }
 
             if (ventaId <= 0)
                 return BadRequest(
@@ -194,6 +205,27 @@ namespace Inventario.Api.Controllers
 
                 saldoPendiente = venta.Total - totalPagado;
 
+                var estadoPago = saldoPendiente == 0
+                    ? "Pagada"
+                    : "Pago parcial";
+
+                _auditoriaService.Registrar(
+                    usuarioId,
+                    "REGISTRAR_PAGO",
+                    "PagoVenta",
+                    pago.Id.ToString(),
+                    $"Venta ID: {pago.VentaId}. " +
+                    $"Caja ID: {pago.CajaId}. " +
+                    $"Método de pago ID: {pago.MetodoPagoId}. " +
+                    $"Es efectivo: {metodoPago.EsEfectivo}. " +
+                    $"Monto abonado: {pago.Monto}. " +
+                    $"Total venta: {venta.Total}. " +
+                    $"Total pagado: {totalPagado}. " +
+                    $"Saldo pendiente: {saldoPendiente}. " +
+                    $"Estado: {estadoPago}.");
+
+                await _context.SaveChangesAsync();
+
                 await transaccion.CommitAsync();
 
                 return StatusCode(201, new
@@ -211,9 +243,7 @@ namespace Inventario.Api.Controllers
                     totalVenta = venta.Total,
                     totalPagado,
                     saldoPendiente,
-                    estadoPago = saldoPendiente == 0
-                        ? "Pagada"
-                        : "Pago parcial"
+                    estadoPago
                 });
             }
             catch (OverflowException)

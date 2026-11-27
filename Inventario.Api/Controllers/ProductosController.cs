@@ -5,6 +5,7 @@ using Inventario.Api.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Inventario.Api.Authorization;
+using Inventario.Api.Services;
 
 namespace Inventario.Api.Controllers
 {
@@ -13,12 +14,16 @@ namespace Inventario.Api.Controllers
     public class ProductosController : ControllerBase
     {
         private readonly InventarioDbContext _context;
+        private readonly IAuditoriaService _auditoriaService;
 
         private const decimal CantidadMaxima = 999999999999999.999m;
 
-        public ProductosController(InventarioDbContext context)
+        public ProductosController(
+            InventarioDbContext context,
+            IAuditoriaService auditoriaService)
         {
             _context = context;
+            _auditoriaService = auditoriaService;
         }
 
         private static bool TieneFracciones(decimal cantidad)
@@ -32,6 +37,7 @@ namespace Inventario.Api.Controllers
                    cantidad > CantidadMaxima ||
                    decimal.Round(cantidad, 3) != cantidad;
         }
+
         private static bool PrecioFueraDeRango(decimal precio)
         {
             return precio < 0 ||
@@ -40,17 +46,27 @@ namespace Inventario.Api.Controllers
         }
 
         private async Task<ActionResult> EjecutarEscrituraProducto(
-            Func<Task<ActionResult>> operacion)
+            Func<int, Task<ActionResult>> operacion)
         {
+            if (!int.TryParse(User.FindFirst("sub")?.Value, out var usuarioId) ||
+                usuarioId <= 0)
+            {
+                return Unauthorized();
+            }
+
             try
             {
                 await using var transaccion = await _context.Database
                     .BeginTransactionAsync(
                         System.Data.IsolationLevel.Serializable);
 
-                var resultado = await operacion();
+                var resultado = await operacion(usuarioId);
 
-                await transaccion.CommitAsync();
+                if (resultado is ObjectResult { StatusCode: >= 200 and < 300 } ||
+                    resultado is StatusCodeResult { StatusCode: >= 200 and < 300 })
+                {
+                    await transaccion.CommitAsync();
+                }
 
                 return resultado;
             }
@@ -159,9 +175,9 @@ namespace Inventario.Api.Controllers
         [Permiso(Permisos.ProductosGestionar)]
         [HttpPost]
         public async Task<ActionResult<Producto>> CrearProducto(
-    [FromBody] Producto nuevoProducto)
+            [FromBody] Producto nuevoProducto)
         {
-            return await EjecutarEscrituraProducto(async () =>
+            return await EjecutarEscrituraProducto(async usuarioId =>
             {
                 if (string.IsNullOrWhiteSpace(nuevoProducto.Nombre))
                     return BadRequest("El nombre es obligatorio.");
@@ -276,6 +292,15 @@ namespace Inventario.Api.Controllers
 
                 await _context.SaveChangesAsync();
 
+                _auditoriaService.Registrar(
+                    usuarioId,
+                    "CREAR",
+                    "Producto",
+                    producto.Id.ToString(),
+                    "Producto creado correctamente.");
+
+                await _context.SaveChangesAsync();
+
                 return CreatedAtAction(
                     nameof(ObtenerProductoPorId),
                     new { id = producto.Id },
@@ -286,9 +311,9 @@ namespace Inventario.Api.Controllers
         [Permiso(Permisos.ProductosGestionar)]
         [HttpPut("{id:int}")]
         public async Task<IActionResult> ActualizarProducto(
-    int id, [FromBody] Producto productoActualizado)
+            int id, [FromBody] Producto productoActualizado)
         {
-            return await EjecutarEscrituraProducto(async () =>
+            return await EjecutarEscrituraProducto(async usuarioId =>
             {
                 if (id <= 0)
                     return BadRequest("El ID debe ser mayor que cero.");
@@ -405,6 +430,13 @@ namespace Inventario.Api.Controllers
                 producto.UnidadMedidaId = productoActualizado.UnidadMedidaId;
                 producto.MarcaId = productoActualizado.MarcaId;
 
+                _auditoriaService.Registrar(
+                    usuarioId,
+                    "ACTUALIZAR",
+                    "Producto",
+                    producto.Id.ToString(),
+                    "Producto actualizado mediante PUT.");
+
                 await _context.SaveChangesAsync();
 
                 return NoContent();
@@ -414,9 +446,9 @@ namespace Inventario.Api.Controllers
         [Permiso(Permisos.ProductosGestionar)]
         [HttpPatch("{id:int}")]
         public async Task<IActionResult> ActualizarParcialProducto(
-    int id, [FromBody] ProductoPatchDto datosPatch)
+            int id, [FromBody] ProductoPatchDto datosPatch)
         {
-            return await EjecutarEscrituraProducto(async () =>
+            return await EjecutarEscrituraProducto(async usuarioId =>
             {
                 if (id <= 0)
                     return BadRequest("El ID debe ser mayor que cero.");
@@ -546,6 +578,13 @@ namespace Inventario.Api.Controllers
                 if (datosPatch.MarcaId.HasValue)
                     producto.MarcaId = datosPatch.MarcaId.Value;
 
+                _auditoriaService.Registrar(
+                    usuarioId,
+                    "MODIFICAR",
+                    "Producto",
+                    producto.Id.ToString(),
+                    "Producto actualizado mediante PATCH.");
+
                 await _context.SaveChangesAsync();
 
                 return Ok(producto);
@@ -556,28 +595,38 @@ namespace Inventario.Api.Controllers
         [HttpPatch("{id:int}/desactivar")]
         public async Task<IActionResult> DesactivarProducto(int id)
         {
-            var producto = await _context.Productos.FindAsync(id);
-
-            if (producto == null)
+            return await EjecutarEscrituraProducto(async usuarioId =>
             {
-                return NotFound("Producto no encontrado.");
-            }
+                var producto = await _context.Productos.FindAsync(id);
 
-            if (!producto.Activo)
-            {
-                return Conflict("El producto ya está desactivado.");
-            }
+                if (producto == null)
+                {
+                    return NotFound("Producto no encontrado.");
+                }
 
-            producto.Activo = false;
+                if (!producto.Activo)
+                {
+                    return Conflict("El producto ya está desactivado.");
+                }
 
-            await _context.SaveChangesAsync();
+                producto.Activo = false;
 
-            return Ok(new
-            {
-                mensaje = "Producto desactivado correctamente.",
-                productoId = producto.Id,
-                nombre = producto.Nombre,
-                activo = producto.Activo
+                _auditoriaService.Registrar(
+                    usuarioId,
+                    "DESACTIVAR",
+                    "Producto",
+                    producto.Id.ToString(),
+                    "Producto desactivado correctamente.");
+
+                await _context.SaveChangesAsync();
+
+                return Ok(new
+                {
+                    mensaje = "Producto desactivado correctamente.",
+                    productoId = producto.Id,
+                    nombre = producto.Nombre,
+                    activo = producto.Activo
+                });
             });
         }
 
@@ -585,28 +634,38 @@ namespace Inventario.Api.Controllers
         [HttpPatch("{id:int}/activar")]
         public async Task<IActionResult> ActivarProducto(int id)
         {
-            var producto = await _context.Productos.FindAsync(id);
-
-            if (producto == null)
+            return await EjecutarEscrituraProducto(async usuarioId =>
             {
-                return NotFound("Producto no encontrado.");
-            }
+                var producto = await _context.Productos.FindAsync(id);
 
-            if (producto.Activo)
-            {
-                return Conflict("El producto ya está activo.");
-            }
+                if (producto == null)
+                {
+                    return NotFound("Producto no encontrado.");
+                }
 
-            producto.Activo = true;
+                if (producto.Activo)
+                {
+                    return Conflict("El producto ya está activo.");
+                }
 
-            await _context.SaveChangesAsync();
+                producto.Activo = true;
 
-            return Ok(new
-            {
-                mensaje = "Producto activado correctamente.",
-                productoId = producto.Id,
-                nombre = producto.Nombre,
-                activo = producto.Activo
+                _auditoriaService.Registrar(
+                    usuarioId,
+                    "ACTIVAR",
+                    "Producto",
+                    producto.Id.ToString(),
+                    "Producto activado correctamente.");
+
+                await _context.SaveChangesAsync();
+
+                return Ok(new
+                {
+                    mensaje = "Producto activado correctamente.",
+                    productoId = producto.Id,
+                    nombre = producto.Nombre,
+                    activo = producto.Activo
+                });
             });
         }
 
@@ -614,7 +673,7 @@ namespace Inventario.Api.Controllers
         [HttpDelete("{id:int}")]
         public async Task<IActionResult> EliminarProducto(int id)
         {
-            return await EjecutarEscrituraProducto(async () =>
+            return await EjecutarEscrituraProducto(async usuarioId =>
             {
                 if (id <= 0)
                     return BadRequest("El ID debe ser mayor que cero.");
@@ -653,6 +712,13 @@ namespace Inventario.Api.Controllers
                         "No se puede eliminar un producto asociado a proveedores.");
 
                 _context.Productos.Remove(producto);
+
+                _auditoriaService.Registrar(
+                    usuarioId,
+                    "ELIMINAR",
+                    "Producto",
+                    producto.Id.ToString(),
+                    "Producto eliminado correctamente.");
 
                 await _context.SaveChangesAsync();
 

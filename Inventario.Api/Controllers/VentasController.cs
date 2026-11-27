@@ -5,6 +5,7 @@ using Inventario.Api.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Inventario.Api.Authorization;
+using Inventario.Api.Services;
 
 namespace Inventario.Api.Controllers
 {
@@ -13,24 +14,35 @@ namespace Inventario.Api.Controllers
     public class VentasController : ControllerBase
     {
         private readonly InventarioDbContext _context;
+        private readonly IAuditoriaService _auditoriaService;
 
-        public VentasController(InventarioDbContext context)
+        public VentasController(
+            InventarioDbContext context,
+            IAuditoriaService auditoriaService)
         {
             _context = context;
+            _auditoriaService = auditoriaService;
         }
+
         private const decimal LimiteCantidad = 1000000000000000m;
         private const decimal LimiteDinero = 10000000000000000m;
 
         private async Task<IActionResult> EjecutarEscrituraVenta(
-            Func<Task<IActionResult>> operacion)
+            Func<int, Task<IActionResult>> operacion)
         {
+            if (!int.TryParse(User.FindFirst("sub")?.Value, out var usuarioId) ||
+                usuarioId <= 0)
+            {
+                return Unauthorized();
+            }
+
             try
             {
                 await using var transaccion = await _context.Database
                     .BeginTransactionAsync(
                         System.Data.IsolationLevel.Serializable);
 
-                var resultado = await operacion();
+                var resultado = await operacion(usuarioId);
 
                 if (resultado is ObjectResult
                     { StatusCode: >= 200 and < 300 } ||
@@ -155,9 +167,9 @@ namespace Inventario.Api.Controllers
         [Permiso(Permisos.VentasGestionar)]
         [HttpPost]
         public async Task<IActionResult> CrearVenta(
-    [FromBody] CrearVentaDto datos)
+            [FromBody] CrearVentaDto datos)
         {
-            return await EjecutarEscrituraVenta(async () =>
+            return await EjecutarEscrituraVenta(async usuarioId =>
             {
                 if (datos == null)
                     return BadRequest(
@@ -211,6 +223,16 @@ namespace Inventario.Api.Controllers
 
                 await _context.SaveChangesAsync();
 
+                _auditoriaService.Registrar(
+                    usuarioId,
+                    "CREAR_VENTA",
+                    "Venta",
+                    venta.Id.ToString(),
+                    $"Venta creada en estado Borrador. " +
+                    $"Cliente ID: {venta.ClienteId?.ToString() ?? "Consumidor final"}.");
+
+                await _context.SaveChangesAsync();
+
                 return StatusCode(201, new
                 {
                     mensaje = "Venta registrada correctamente.",
@@ -228,10 +250,10 @@ namespace Inventario.Api.Controllers
         [Permiso(Permisos.VentasGestionar)]
         [HttpPost("{ventaId:int}/detalles")]
         public async Task<IActionResult> AgregarDetalleVenta(
-    int ventaId,
-    [FromBody] AgregarDetalleVentaDto datos)
+            int ventaId,
+            [FromBody] AgregarDetalleVentaDto datos)
         {
-            return await EjecutarEscrituraVenta(async () =>
+            return await EjecutarEscrituraVenta(async usuarioId =>
             {
                 if (ventaId <= 0)
                     return BadRequest(
@@ -301,6 +323,20 @@ namespace Inventario.Api.Controllers
                 _context.DetallesVenta.Add(detalle);
 
                 venta.Total = nuevoTotal;
+
+                await _context.SaveChangesAsync();
+
+                _auditoriaService.Registrar(
+                    usuarioId,
+                    "AGREGAR_DETALLE",
+                    "Venta",
+                    ventaId.ToString(),
+                    $"Detalle ID: {detalle.Id}. " +
+                    $"Producto ID: {detalle.ProductoId}. " +
+                    $"Cantidad: {detalle.Cantidad}. " +
+                    $"Precio unitario: {detalle.PrecioUnitario}. " +
+                    $"Subtotal: {detalle.Subtotal}. " +
+                    $"Total venta: {venta.Total}.");
 
                 await _context.SaveChangesAsync();
 
@@ -396,16 +432,19 @@ namespace Inventario.Api.Controllers
                 };
 
                 if (estadoNormalizado == null)
-                    return BadRequest("El estado debe ser Borrador, Confirmada o Anulada.");
+                    return BadRequest(
+                        "El estado debe ser Borrador, Confirmada o Anulada.");
             }
 
             var consulta = _context.Ventas.AsNoTracking();
 
             if (clienteId.HasValue)
-                consulta = consulta.Where(v => v.ClienteId == clienteId.Value);
+                consulta = consulta.Where(
+                    v => v.ClienteId == clienteId.Value);
 
             if (estadoNormalizado != null)
-                consulta = consulta.Where(v => v.Estado == estadoNormalizado);
+                consulta = consulta.Where(
+                    v => v.Estado == estadoNormalizado);
 
             var ventas = await consulta
                 .OrderByDescending(v => v.FechaVenta)
@@ -433,7 +472,7 @@ namespace Inventario.Api.Controllers
         [HttpPatch("{id:int}/confirmar")]
         public async Task<IActionResult> ConfirmarVenta(int id)
         {
-            return await EjecutarEscrituraVenta(async () =>
+            return await EjecutarEscrituraVenta(async usuarioId =>
             {
                 if (id <= 0)
                     return BadRequest(
@@ -534,6 +573,16 @@ namespace Inventario.Api.Controllers
 
                 venta.Estado = "Confirmada";
 
+                _auditoriaService.Registrar(
+                    usuarioId,
+                    "CONFIRMAR_VENTA",
+                    "Venta",
+                    venta.Id.ToString(),
+                    $"Venta confirmada correctamente. " +
+                    $"Cliente ID: {venta.ClienteId?.ToString() ?? "Consumidor final"}. " +
+                    $"Total: {venta.Total}. " +
+                    $"Movimientos de stock: {detalles.Count}.");
+
                 await _context.SaveChangesAsync();
 
                 return Ok(new
@@ -550,47 +599,62 @@ namespace Inventario.Api.Controllers
         [HttpPatch("{id:int}/anular")]
         public async Task<IActionResult> AnularVenta(int id)
         {
-            if (id <= 0)
-                return BadRequest("El ID de la venta debe ser mayor que cero.");
-
-            var filasActualizadas = await _context.Ventas
-                .Where(v => v.Id == id && v.Estado == "Borrador")
-                .ExecuteUpdateAsync(cambios =>
-                    cambios.SetProperty(v => v.Estado, "Anulada"));
-
-            if (filasActualizadas == 0)
+            return await EjecutarEscrituraVenta(async usuarioId =>
             {
-                var venta = await _context.Ventas
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(v => v.Id == id);
+                if (id <= 0)
+                    return BadRequest(
+                        "El ID de la venta debe ser mayor que cero.");
 
-                if (venta == null)
-                    return NotFound("Venta no encontrada.");
+                var filasActualizadas = await _context.Ventas
+                    .Where(v => v.Id == id && v.Estado == "Borrador")
+                    .ExecuteUpdateAsync(cambios =>
+                        cambios.SetProperty(v => v.Estado, "Anulada"));
 
-                if (venta.Estado == "Anulada")
-                    return Conflict("La venta ya está anulada.");
+                if (filasActualizadas == 0)
+                {
+                    var venta = await _context.Ventas
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(v => v.Id == id);
 
-                if (venta.Estado == "Confirmada")
-                    return Conflict("No se puede anular una venta confirmada.");
+                    if (venta == null)
+                        return NotFound("Venta no encontrada.");
 
-                return Conflict("Solo se pueden anular ventas en estado Borrador.");
-            }
+                    if (venta.Estado == "Anulada")
+                        return Conflict("La venta ya está anulada.");
 
-            return Ok(new
-            {
-                mensaje = "Venta anulada correctamente.",
-                ventaId = id,
-                estado = "Anulada"
+                    if (venta.Estado == "Confirmada")
+                        return Conflict(
+                            "No se puede anular una venta confirmada.");
+
+                    return Conflict(
+                        "Solo se pueden anular ventas en estado Borrador.");
+                }
+
+                _auditoriaService.Registrar(
+                    usuarioId,
+                    "ANULAR_VENTA",
+                    "Venta",
+                    id.ToString(),
+                    "Venta anulada correctamente desde el estado Borrador.");
+
+                await _context.SaveChangesAsync();
+
+                return Ok(new
+                {
+                    mensaje = "Venta anulada correctamente.",
+                    ventaId = id,
+                    estado = "Anulada"
+                });
             });
         }
 
         [Permiso(Permisos.VentasGestionar)]
         [HttpDelete("{ventaId:int}/detalles/{detalleId:int}")]
         public async Task<IActionResult> EliminarDetalleVenta(
-    int ventaId,
-    int detalleId)
+            int ventaId,
+            int detalleId)
         {
-            return await EjecutarEscrituraVenta(async () =>
+            return await EjecutarEscrituraVenta(async usuarioId =>
             {
                 if (ventaId <= 0 || detalleId <= 0)
                     return BadRequest(
@@ -624,6 +688,17 @@ namespace Inventario.Api.Controllers
 
                 venta.Total -= detalle.Subtotal;
 
+                _auditoriaService.Registrar(
+                    usuarioId,
+                    "ELIMINAR_DETALLE",
+                    "Venta",
+                    ventaId.ToString(),
+                    $"Detalle ID: {detalle.Id}. " +
+                    $"Producto ID: {detalle.ProductoId}. " +
+                    $"Cantidad eliminada: {detalle.Cantidad}. " +
+                    $"Subtotal eliminado: {detalle.Subtotal}. " +
+                    $"Total venta: {venta.Total}.");
+
                 _context.DetallesVenta.Remove(detalle);
 
                 await _context.SaveChangesAsync();
@@ -641,11 +716,11 @@ namespace Inventario.Api.Controllers
         [Permiso(Permisos.VentasGestionar)]
         [HttpPut("{ventaId:int}/detalles/{detalleId:int}")]
         public async Task<IActionResult> ActualizarDetalleVenta(
-    int ventaId,
-    int detalleId,
-    [FromBody] ActualizarDetalleVentaDto datos)
+            int ventaId,
+            int detalleId,
+            [FromBody] ActualizarDetalleVentaDto datos)
         {
-            return await EjecutarEscrituraVenta(async () =>
+            return await EjecutarEscrituraVenta(async usuarioId =>
             {
                 if (ventaId <= 0 || detalleId <= 0)
                     return BadRequest(
@@ -704,11 +779,32 @@ namespace Inventario.Api.Controllers
                     return BadRequest(
                         "El total de la venta supera el límite permitido.");
 
+                var cantidadAnterior = detalle.Cantidad;
+                var precioAnterior = detalle.PrecioUnitario;
+                var subtotalAnterior = detalle.Subtotal;
+                var totalAnterior = venta.Total;
+
                 detalle.Cantidad = datos.Cantidad;
                 detalle.PrecioUnitario = datos.PrecioUnitario;
                 detalle.Subtotal = nuevoSubtotal;
 
                 venta.Total = nuevoTotal;
+
+                _auditoriaService.Registrar(
+                    usuarioId,
+                    "MODIFICAR_DETALLE",
+                    "Venta",
+                    ventaId.ToString(),
+                    $"Detalle ID: {detalle.Id}. " +
+                    $"Producto ID: {detalle.ProductoId}. " +
+                    $"Cantidad anterior: {cantidadAnterior}. " +
+                    $"Nueva cantidad: {detalle.Cantidad}. " +
+                    $"Precio anterior: {precioAnterior}. " +
+                    $"Nuevo precio: {detalle.PrecioUnitario}. " +
+                    $"Subtotal anterior: {subtotalAnterior}. " +
+                    $"Nuevo subtotal: {detalle.Subtotal}. " +
+                    $"Total anterior: {totalAnterior}. " +
+                    $"Nuevo total: {venta.Total}.");
 
                 await _context.SaveChangesAsync();
 
