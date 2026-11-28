@@ -1,0 +1,69 @@
+<router-outlet />
+
+@if (showWarning()) {
+  <div class="session-warning-overlay">
+    <section
+      class="session-warning-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="session-warning-title"
+    >
+      <div class="session-warning-icon">
+        <span>!</span>
+      </div>
+
+      <h2 id="session-warning-title">
+        Tu sesión está por expirar
+      </h2>
+
+      <p class="session-warning-description">
+        Por seguridad, tu sesión está próxima a vencer.
+      </p>
+
+      <div class="session-warning-countdown">
+        {{ remainingSeconds() }}
+      </div>
+
+      <span class="session-warning-label">
+        Segundos restantes
+      </span>
+
+      <div class="session-warning-progress">
+        <div
+          class="session-warning-progress-bar"
+          [style.width.%]="(remainingSeconds() ?? 0) / 60 * 100"
+        ></div>
+      </div>
+
+      @if (sessionWarningError()) {
+        <div class="session-warning-error" role="alert">
+          {{ sessionWarningError() }}
+        </div>
+      }
+
+      <div class="session-warning-actions">
+        <button
+          type="button"
+          class="session-continue-button"
+          [disabled]="sessionAction() !== null"
+          (click)="continueSession()"
+        >
+          {{ sessionAction() === 'continue'
+            ? 'Extendiendo sesión...'
+            : 'Continuar sesión' }}
+        </button>
+
+        <button
+          type="button"
+          class="session-logout-button"
+          [disabled]="sessionAction() !== null"
+          (click)="logoutSession()"
+        >
+          {{ sessionAction() === 'logout'
+            ? 'Cerrando sesión...'
+            : 'Cerrar sesión' }}
+        </button>
+      </div>
+    </section>
+  </div>
+}
